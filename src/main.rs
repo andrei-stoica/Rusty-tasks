@@ -3,6 +3,7 @@ use chrono::{Datelike, Local};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use todo_file::TodoFile;
 
 //TODO handle unwraps and errors more uniformly
@@ -12,19 +13,19 @@ fn main() {
     let data_dir = get_data_dir("notes");
 
     println!("{}", data_dir.to_str().unwrap());
-    let latest_file = get_latest_file(&data_dir).unwrap();
-    //.expect(
-    //    format!(
-    //        "Could not find any notes files please use format: {}",
-    //        get_file_regex().to_string()
-    //    )
-    //    .as_str(),
-    //);
+    let latest_file =
+        get_latest_file(&data_dir).expect(format!("Could not find any notes files").as_str());
     println!("Latest file: {:?}", latest_file);
     let now = Local::now();
     let today = NaiveDate::from_ymd_opt(now.year(), now.month(), now.day());
     match today {
-        Some(today) if latest_file.date == today => println!("Todays file was created"),
+        Some(today) if latest_file.date == today => {
+            println!("Todays file was created");
+            Command::new("vim")
+                .args([latest_file.file.path()])
+                .status()
+                .expect(format!("failed to launch editor {}", "vim").as_str());
+        }
         Some(today) if latest_file.date < today => println!("Todays file was not created"),
         Some(today) if latest_file.date > today => println!("Future files were created"),
 
@@ -34,10 +35,10 @@ fn main() {
 
 mod todo_file {
     use chrono::naive::NaiveDate;
+    use regex::Regex;
     use std::convert::TryFrom;
     use std::fs::DirEntry;
     use std::str::FromStr;
-    use regex::Regex;
 
     #[derive(Debug)]
     pub struct TodoFile {
@@ -68,7 +69,7 @@ mod todo_file {
         }
 
         fn get_file_regex() -> Regex {
-            //TODO This would ideally be configurable 
+            //TODO This would ideally be configurable
             Regex::new(r"(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2}).md")
                 .expect("could not create regex")
         }
