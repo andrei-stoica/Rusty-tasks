@@ -13,23 +13,37 @@ use todo_file::TodoFile;
 fn main() {
     let data_dir = get_data_dir("notes");
     println!("{}", data_dir.to_str().unwrap());
+
     let latest_file =
         get_latest_file(&data_dir).expect(format!("Could not find any notes files").as_str());
     println!("Latest file: {:?}", latest_file);
+
+    let mut editor = Command::new(get_editor("vim".to_string()));
+
     let now = Local::now();
     let today = NaiveDate::from_ymd_opt(now.year(), now.month(), now.day());
     match today {
         Some(today) if latest_file.date < today => {
             println!("Today's file does not exist, creating");
-            let today_file_name = format!("{}-{:02}-{:02}.md", today.year(), today.month(), today.day());
+            let today_file_name = format!(
+                "{}-{:02}-{:02}.md",
+                today.year(),
+                today.month(),
+                today.day()
+            );
             let mut today_file_path = data_dir.clone();
             today_file_path.push(today_file_name);
 
-            copy(latest_file.file.path(), today_file_path).unwrap();
+            copy(latest_file.file.path(), today_file_path.clone()).unwrap();
+
+            editor
+                .args([today_file_path])
+                .status()
+                .expect(format!("failed to launch editor {}", "vim").as_str());
         }
         Some(_) => {
             println!("Todays file was created");
-            Command::new("vim")
+            editor
                 .args([latest_file.file.path()])
                 .status()
                 .expect(format!("failed to launch editor {}", "vim").as_str());
@@ -109,6 +123,13 @@ mod todo_file {
             )
             .to_string())
         }
+    }
+}
+
+fn get_editor(fallback: String) -> String {
+    match env::var("EDITOR") {
+        Ok(editor) => editor,
+        _ => fallback,
     }
 }
 
