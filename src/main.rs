@@ -1,17 +1,17 @@
 use chrono::naive::NaiveDate;
 use chrono::{Datelike, Local};
 use std::env;
-use std::fs;
+use std::fs::{copy, read_dir};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use todo_file::TodoFile;
 
 //TODO handle unwraps and errors more uniformly
 //TODO move TodoFile into its file
+//TODO clean up verbose printing
 
 fn main() {
     let data_dir = get_data_dir("notes");
-
     println!("{}", data_dir.to_str().unwrap());
     let latest_file =
         get_latest_file(&data_dir).expect(format!("Could not find any notes files").as_str());
@@ -19,17 +19,22 @@ fn main() {
     let now = Local::now();
     let today = NaiveDate::from_ymd_opt(now.year(), now.month(), now.day());
     match today {
-        Some(today) if latest_file.date == today => {
+        Some(today) if latest_file.date < today => {
+            println!("Today's file does not exist, creating");
+            let today_file_name = format!("{}-{:02}-{:02}.md", today.year(), today.month(), today.day());
+            let mut today_file_path = data_dir.clone();
+            today_file_path.push(today_file_name);
+
+            copy(latest_file.file.path(), today_file_path).unwrap();
+        }
+        Some(_) => {
             println!("Todays file was created");
             Command::new("vim")
                 .args([latest_file.file.path()])
                 .status()
                 .expect(format!("failed to launch editor {}", "vim").as_str());
         }
-        Some(today) if latest_file.date < today => println!("Todays file was not created"),
-        Some(today) if latest_file.date > today => println!("Future files were created"),
-
-        _ => println!("Today never happend!"),
+        _ => println!("Could not get today's date"),
     }
 }
 
@@ -120,7 +125,7 @@ fn get_data_dir(dir_name: &str) -> PathBuf {
 }
 
 fn get_latest_file(dir: &Path) -> Result<TodoFile, String> {
-    let dir = fs::read_dir(dir).expect(format!("Could not find notes folder: {:?}", dir).as_str());
+    let dir = read_dir(dir).expect(format!("Could not find notes folder: {:?}", dir).as_str());
     dir.filter_map(|f| f.ok())
         .filter_map(|file| TodoFile::try_from(file).ok())
         .reduce(|a, b| TodoFile::latest_file(a, b))
