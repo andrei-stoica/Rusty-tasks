@@ -3,13 +3,21 @@ mod todo_file;
 use crate::todo_file::TodoFile;
 use chrono::naive::NaiveDate;
 use chrono::{Datelike, Local};
+use comrak::nodes::AstNode;
+use comrak::{
+    format_commonmark, parse_document, Arena, ComrakExtensionOptions, ComrakOptions,
+    ComrakParseOptions,
+};
 use std::env;
-use std::fs::{copy, read_dir};
+use std::fs::{copy, read, read_dir, File};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::str;
 
 //TODO handle unwraps and errors more uniformly
 //TODO clean up verbose printing
+//TODO create config for passing options to different files
 
 fn main() {
     let data_dir = get_data_dir("notes");
@@ -35,7 +43,14 @@ fn main() {
             let mut today_file_path = data_dir.clone();
             today_file_path.push(today_file_name);
 
-            copy(latest_file.file.path(), today_file_path.clone()).unwrap();
+            let arena = Arena::new();
+            let root = parse_todo_file(&latest_file, &arena);
+            //copy(latest_file.file.path(), today_file_path.clone()).unwrap();
+            let mut new_doc = vec![];
+            format_commonmark(root, &ComrakOptions::default(), &mut new_doc);
+
+            let mut new_file = File::create(today_file_path.clone()).unwrap();
+            new_file.write_all(&new_doc);
 
             editor
                 .args([today_file_path])
@@ -51,6 +66,24 @@ fn main() {
         }
         _ => println!("Could not get today's date"),
     }
+}
+
+fn parse_todo_file<'a>(file: &TodoFile, arena: &'a Arena<AstNode<'a>>) -> &'a AstNode<'a> {
+    let options = &ComrakOptions {
+        extension: ComrakExtensionOptions {
+            tasklist: true,
+            ..ComrakExtensionOptions::default()
+        },
+        parse: ComrakParseOptions {
+            relaxed_tasklist_matching: true,
+            ..ComrakParseOptions::default()
+        },
+        ..ComrakOptions::default()
+    };
+
+    let contents = read(file.file.path()).unwrap();
+
+    parse_document(arena, str::from_utf8(&contents).unwrap(), options)
 }
 
 fn get_editor(fallback: String) -> String {
