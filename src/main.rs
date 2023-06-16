@@ -3,11 +3,12 @@ mod todo_file;
 use crate::todo_file::TodoFile;
 use chrono::naive::NaiveDate;
 use chrono::{Datelike, Local};
-use comrak::nodes::AstNode;
+use comrak::nodes::{AstNode, NodeValue};
 use comrak::{
     format_commonmark, parse_document, Arena, ComrakExtensionOptions, ComrakOptions,
     ComrakParseOptions,
 };
+use std::borrow::Borrow;
 use std::env;
 use std::fs::{copy, read, read_dir, File};
 use std::io::Write;
@@ -45,12 +46,12 @@ fn main() {
 
             let arena = Arena::new();
             let root = parse_todo_file(&latest_file, &arena);
-            //copy(latest_file.file.path(), today_file_path.clone()).unwrap();
-            let mut new_doc = vec![];
-            format_commonmark(root, &ComrakOptions::default(), &mut new_doc);
+            cleanup_sections(&root, &["Hello world!", "Hi there"], 2);
 
+            let mut new_doc = vec![];
+            format_commonmark(root, &ComrakOptions::default(), &mut new_doc).unwrap();
             let mut new_file = File::create(today_file_path.clone()).unwrap();
-            new_file.write_all(&new_doc);
+            new_file.write_all(&new_doc).unwrap();
 
             editor
                 .args([today_file_path])
@@ -84,6 +85,39 @@ fn parse_todo_file<'a>(file: &TodoFile, arena: &'a Arena<AstNode<'a>>) -> &'a As
     let contents = read(file.file.path()).unwrap();
 
     parse_document(arena, str::from_utf8(&contents).unwrap(), options)
+}
+
+fn cleanup_sections<'a>(
+    root: &'a AstNode<'a>,
+    sections: &[&str],
+    target_level: u8,
+) -> &'a AstNode<'a> {
+    for node in root.children() {
+        match &node.data.borrow().value {
+            NodeValue::Heading(heading) if heading.level == target_level => {
+                if let NodeValue::Text(title) =
+                    &node.first_child().borrow().unwrap().data.borrow().value
+                {
+                    if !sections.contains(&title.as_str()) {
+                        let level = heading.level;
+
+                        let mut following = node.following_siblings();
+                        following.next(); // Skip self
+                        for node in following {
+                            // remove everthing under this heading
+                            match &node.data.borrow().value {
+                                NodeValue::Heading(heading) if heading.level <= level => break,
+                                _ => node.detach(),
+                            }
+                        }
+                        node.detach(); // remove heading as well
+                    };
+                };
+            }
+            _ => (),
+        }
+    }
+    root
 }
 
 fn get_editor(fallback: String) -> String {
