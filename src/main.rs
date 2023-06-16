@@ -10,7 +10,7 @@ use comrak::{
 };
 use std::borrow::Borrow;
 use std::env;
-use std::fs::{copy, read, read_dir, File};
+use std::fs::{read, read_dir, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -82,9 +82,17 @@ fn parse_todo_file<'a>(file: &TodoFile, arena: &'a Arena<AstNode<'a>>) -> &'a As
         ..ComrakOptions::default()
     };
 
-    let contents = read(file.file.path()).unwrap();
+    let contents_utf8 = read(file.file.path())
+        .expect(format!("Could not read file {}", file.file.path().to_string_lossy()).as_str());
+    let contents = str::from_utf8(&contents_utf8).expect(
+        format!(
+            "failed to convert contents of file to string: {}",
+            file.file.path().to_string_lossy()
+        )
+        .as_str(),
+    );
 
-    parse_document(arena, str::from_utf8(&contents).unwrap(), options)
+    parse_document(arena, contents, options)
 }
 
 fn cleanup_sections<'a>(
@@ -93,29 +101,41 @@ fn cleanup_sections<'a>(
     target_level: u8,
 ) -> &'a AstNode<'a> {
     for node in root.children() {
-        match &node.data.borrow().value {
-            NodeValue::Heading(heading) if heading.level == target_level => {
-                if let NodeValue::Text(title) =
-                    &node.first_child().borrow().unwrap().data.borrow().value
-                {
-                    if !sections.contains(&title.as_str()) {
-                        let level = heading.level;
-
-                        let mut following = node.following_siblings();
-                        following.next(); // Skip self
-                        for node in following {
-                            // remove everthing under this heading
-                            match &node.data.borrow().value {
-                                NodeValue::Heading(heading) if heading.level <= level => break,
-                                _ => node.detach(),
-                            }
-                        }
-                        node.detach(); // remove heading as well
-                    };
-                };
+        let node_ref = &node.data.borrow();
+        if let NodeValue::Heading(heading) = node_ref.value {
+            if heading.level != target_level {
+                continue;
             }
-            _ => (),
-        }
+            
+            let first_child_ref = &node.first_child();
+            let first_child = if let Some(child) = first_child_ref.borrow() {
+                child
+            } else {
+                continue;
+            };
+
+            let data_ref = &first_child.data.borrow();
+            let title = if let NodeValue::Text(value) = &data_ref.value {
+                value
+            } else {
+                continue;
+            };
+
+            if !sections.contains(&title.as_str()) {
+                let level = heading.level;
+
+                let mut following = node.following_siblings();
+                following.next(); // Skip self
+                for node in following {
+                    // remove everthing under this heading
+                    match &node.data.borrow().value {
+                        NodeValue::Heading(heading) if heading.level <= level => break,
+                        _ => node.detach(),
+                    }
+                }
+                node.detach(); // remove heading as well
+            }
+        };
     }
     root
 }
@@ -128,12 +148,13 @@ fn get_editor(fallback: String) -> String {
 }
 
 fn get_data_dir(dir_name: &str) -> PathBuf {
-    let mut dir = if let Ok(home) = env::var("HOME") {
-        let mut x = PathBuf::new();
-        x.push(home);
-        x
-    } else {
-        env::current_dir().expect("PWD environment variable not set")
+    let mut dir = match env::var("HOME") {
+        Ok(home) => {
+            let mut x = PathBuf::new();
+            x.push(home);
+            x
+        }
+        _ => env::current_dir().expect("PWD environment variable not set"),
     };
     dir = dir.join(dir_name);
     dir
