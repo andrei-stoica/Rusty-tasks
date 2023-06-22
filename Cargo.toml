@@ -8,4 +8,7 @@ edition = "2021"
 [dependencies]
 chrono = "0.4.26"
 comrak = "0.18.0"
+figment = { version = "0.10.10", features = ["env", "serde_json", "json"] }
 regex = "1.8.4"
+serde = { version = "1.0.164", features = ["serde_derive"] }
+serde_json = "1.0.97"
