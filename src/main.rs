@@ -5,13 +5,15 @@ use crate::config::Config;
 use crate::todo_file::TodoFile;
 use chrono::naive::NaiveDate;
 use chrono::{Datelike, Local};
-use comrak::nodes::{AstNode, NodeValue};
+use comrak::nodes::{AstNode, NodeHeading, NodeValue};
 use comrak::{format_commonmark, parse_document, Arena};
 use comrak::{ComrakExtensionOptions, ComrakOptions, ComrakParseOptions};
 use std::borrow::Borrow;
+use std::collections::HashSet;
 use std::env;
 use std::fs::{read, read_dir, File};
 use std::io::Write;
+use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str;
@@ -60,26 +62,32 @@ fn main() {
             );
             let mut today_file_path = data_dir.clone();
             today_file_path.push(today_file_name);
+            let sections: HashSet<String> =
+                HashSet::from_iter(cfg.sections.clone().unwrap().into_iter());
 
             let arena = Arena::new();
             let root = parse_todo_file(&latest_file, &arena);
-            //println!("{:#?}", root);
-            //println!("=======================================================");
-            //println!("{:#?}", root.children().collect::<Vec<_>>());
-            cleanup_sections(&root, &cfg.sections.unwrap(), 2);
-            //println!("{:#?}", root);
+            let found_sections: HashSet<String> = HashSet::from_iter(
+                &mut cleanup_sections(&root, &cfg.sections.unwrap()).into_iter(),
+            );
+            let missing_sections: Vec<&String> = sections.symmetric_difference(&found_sections).collect();
+
+
 
             let mut new_doc = vec![];
             format_commonmark(root, &ComrakOptions::default(), &mut new_doc).unwrap();
+            for section in missing_sections.iter().map(|s| format!("\n## {}\n", s)) {
+                new_doc.append(&mut section.as_bytes().to_vec())
+            }
             let mut new_file = File::create(today_file_path.clone()).unwrap();
             new_file.write_all(&new_doc).unwrap();
 
             Some(today_file_path)
-        },
+        }
         Some(_) => {
             println!("Todays file was created");
             Some(latest_file.file.path())
-        },
+        }
         _ => {
             println!("Could not get today's date");
             None
@@ -120,15 +128,12 @@ fn parse_todo_file<'a>(file: &TodoFile, arena: &'a Arena<AstNode<'a>>) -> &'a As
     parse_document(arena, contents, options)
 }
 
-fn cleanup_sections<'a>(
-    root: &'a AstNode<'a>,
-    sections: &Vec<String>,
-    target_level: u8,
-) -> &'a AstNode<'a> {
-    for node in root.reverse_children(){
+fn cleanup_sections<'a>(root: &'a AstNode<'a>, sections: &Vec<String>) -> Vec<String> {
+    let mut found_sections: Vec<String> = Vec::new();
+    for node in root.reverse_children() {
         let node_ref = &node.data.borrow();
         if let NodeValue::Heading(heading) = node_ref.value {
-            if heading.level != target_level {
+            if heading.level < 3 {
                 continue;
             }
             println!("at level {}", heading.level);
@@ -162,10 +167,12 @@ fn cleanup_sections<'a>(
                     }
                 }
                 node.detach(); // remove heading as well
+            } else {
+                found_sections.push(title.to_string());
             }
         };
     }
-    root
+    found_sections
 }
 
 fn get_data_dir(dir_name: &str) -> PathBuf {
