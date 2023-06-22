@@ -1,13 +1,13 @@
+mod config;
 mod todo_file;
 
+use crate::config::Config;
 use crate::todo_file::TodoFile;
 use chrono::naive::NaiveDate;
 use chrono::{Datelike, Local};
 use comrak::nodes::{AstNode, NodeValue};
-use comrak::{
-    format_commonmark, parse_document, Arena, ComrakExtensionOptions, ComrakOptions,
-    ComrakParseOptions,
-};
+use comrak::{format_commonmark, parse_document, Arena};
+use comrak::{ComrakExtensionOptions, ComrakOptions, ComrakParseOptions};
 use std::borrow::Borrow;
 use std::env;
 use std::fs::{read, read_dir, File};
@@ -21,6 +21,23 @@ use std::str;
 //TODO create config for passing options to different files
 
 fn main() {
+    let expected_cfg_files = Config::expected_locations().unwrap();
+    let cfg_files: Vec<&Path> = expected_cfg_files
+        .iter()
+        .map(|file| Path::new(file))
+        .filter(|file| file.exists())
+        .collect();
+    println!("{:#?}", cfg_files);
+
+    if cfg_files.len() <= 0 {
+        let status = Config::write_default(expected_cfg_files[0].to_str().unwrap());
+        if let Err(e) = status {
+            println!("Could not write to default cfg location: {:#?}", e);
+        }
+    }
+    let cfg = Config::load(cfg_files.last().unwrap().to_str().unwrap()).unwrap();
+
+    println!("{:#?}", cfg);
     let data_dir = get_data_dir("notes");
     println!("{}", data_dir.to_str().unwrap());
 
@@ -28,11 +45,11 @@ fn main() {
         get_latest_file(&data_dir).expect(format!("Could not find any notes files").as_str());
     println!("Latest file: {:?}", latest_file);
 
-    let mut editor = Command::new(get_editor("vim".to_string()));
+    let mut editor = Command::new(cfg.editor.expect("Could not resovle edidtor from config"));
 
     let now = Local::now();
     let today = NaiveDate::from_ymd_opt(now.year(), now.month(), now.day());
-    match today {
+    let current_file = match today {
         Some(today) if latest_file.date < today => {
             println!("Today's file does not exist, creating");
             let today_file_name = format!(
@@ -46,27 +63,35 @@ fn main() {
 
             let arena = Arena::new();
             let root = parse_todo_file(&latest_file, &arena);
-            cleanup_sections(&root, &["Hello world!", "Hi there"], 2);
+            //println!("{:#?}", root);
+            //println!("=======================================================");
+            //println!("{:#?}", root.children().collect::<Vec<_>>());
+            cleanup_sections(&root, &cfg.sections.unwrap(), 2);
+            //println!("{:#?}", root);
 
             let mut new_doc = vec![];
             format_commonmark(root, &ComrakOptions::default(), &mut new_doc).unwrap();
             let mut new_file = File::create(today_file_path.clone()).unwrap();
             new_file.write_all(&new_doc).unwrap();
 
-            editor
-                .args([today_file_path])
-                .status()
-                .expect(format!("failed to launch editor {}", "vim").as_str());
-        }
+            Some(today_file_path)
+        },
         Some(_) => {
             println!("Todays file was created");
-            editor
-                .args([latest_file.file.path()])
-                .status()
-                .expect(format!("failed to launch editor {}", "vim").as_str());
+            Some(latest_file.file.path())
+        },
+        _ => {
+            println!("Could not get today's date");
+            None
         }
-        _ => println!("Could not get today's date"),
-    }
+    };
+
+    if let Some(file) = current_file {
+        editor
+            .args([file])
+            .status()
+            .expect(format!("failed to launch editor {}", "vim").as_str());
+    };
 }
 
 fn parse_todo_file<'a>(file: &TodoFile, arena: &'a Arena<AstNode<'a>>) -> &'a AstNode<'a> {
@@ -97,16 +122,17 @@ fn parse_todo_file<'a>(file: &TodoFile, arena: &'a Arena<AstNode<'a>>) -> &'a As
 
 fn cleanup_sections<'a>(
     root: &'a AstNode<'a>,
-    sections: &[&str],
+    sections: &Vec<String>,
     target_level: u8,
 ) -> &'a AstNode<'a> {
-    for node in root.children() {
+    for node in root.reverse_children(){
         let node_ref = &node.data.borrow();
         if let NodeValue::Heading(heading) = node_ref.value {
             if heading.level != target_level {
                 continue;
             }
-            
+            println!("at level {}", heading.level);
+
             let first_child_ref = &node.first_child();
             let first_child = if let Some(child) = first_child_ref.borrow() {
                 child
@@ -121,15 +147,17 @@ fn cleanup_sections<'a>(
                 continue;
             };
 
-            if !sections.contains(&title.as_str()) {
+            println!("checking {}", title);
+            if !sections.iter().any(|section| section.eq(title)) {
                 let level = heading.level;
+                println!("removing {}", title);
 
                 let mut following = node.following_siblings();
                 following.next(); // Skip self
                 for node in following {
                     // remove everthing under this heading
                     match &node.data.borrow().value {
-                        NodeValue::Heading(heading) if heading.level <= level => break,
+                        NodeValue::Heading(sub_heading) if sub_heading.level <= level => break,
                         _ => node.detach(),
                     }
                 }
@@ -138,13 +166,6 @@ fn cleanup_sections<'a>(
         };
     }
     root
-}
-
-fn get_editor(fallback: String) -> String {
-    match env::var("EDITOR") {
-        Ok(editor) => editor,
-        _ => fallback,
-    }
 }
 
 fn get_data_dir(dir_name: &str) -> PathBuf {

@@ -41,13 +41,13 @@ impl TryFrom<DirEntry> for TodoFile {
 
     fn try_from(direntry: DirEntry) -> Result<Self, Self::Error> {
         let re = TodoFile::get_file_regex();
-        println!("{:?}", re);
+//        println!("{:?}", re);
         let file_name = direntry.file_name();
         let file_name_str = match file_name.to_str() {
             Some(name) => name,
             _ => "",
         };
-        println!("{:?}", file_name_str);
+//        println!("{:?}", file_name_str);
 
         if let Some(caps) = re.captures(file_name_str) {
             let year: i32 = Self::capture_as_number(&caps, "year").unwrap();
