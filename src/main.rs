@@ -15,17 +15,18 @@ use std::collections::HashMap;
 use std::env;
 use std::fs::{read, read_dir, File};
 use std::io::Write;
-use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str;
 
 //TODO handle unwraps and errors more uniformly
+//TODO refactor creating new file
 //TODO clean up verbose printing
 //TODO create custom errors for better error handling
 
 fn main() {
     let expected_cfg_files = Config::expected_locations().unwrap();
+    println!("{:#?}", expected_cfg_files);
     let cfg_files: Vec<&Path> = expected_cfg_files
         .iter()
         .map(|file| Path::new(file))
@@ -42,17 +43,17 @@ fn main() {
     let cfg = Config::load(cfg_files.last().unwrap().to_str().unwrap()).unwrap();
 
     println!("{:#?}", cfg);
-    let data_dir = get_data_dir("notes");
+    let data_dir = get_data_dir(&cfg.notes_dir.clone().expect("Could not get notes dir from config"));
     println!("dir = {}", data_dir.to_str().unwrap());
 
     let latest_file =
-        get_latest_file(&data_dir).expect(format!("Could not find any notes files").as_str());
+        get_latest_file(&data_dir);
     println!("Latest file: {:?}", latest_file);
 
     let now = Local::now();
-    let today = NaiveDate::from_ymd_opt(now.year(), now.month(), now.day());
-    let current_file = match today {
-        Some(today) if latest_file.date < today => {
+    let today = NaiveDate::from_ymd_opt(now.year(), now.month(), now.day()).unwrap();
+    let current_file = match latest_file {
+        Ok(file) if file.date < today => {
             println!("Today's file does not exist, creating");
             let today_file_name = format!(
                 "{}-{:02}-{:02}.md",
@@ -64,7 +65,7 @@ fn main() {
             today_file_path.push(today_file_name);
 
             let arena = Arena::new();
-            let root = parse_todo_file(&latest_file, &arena);
+            let root = parse_todo_file(&file, &arena);
             //println!("{:#?}", root);
 
             //println!("=======================================================");
@@ -82,7 +83,6 @@ fn main() {
                     None => TaskGroup::empty(section.to_string(), level),
                 })
                 .for_each(|task_group| println!("{}", task_group.to_string()));
-
             let mut content = format!(
                 "# Today's tasks {}-{:02}-{:02}\n",
                 today.year(),
@@ -106,13 +106,41 @@ fn main() {
 
             Some(today_file_path)
         }
-        Some(_) => {
+        Ok(file) => {
             println!("Today's file was created");
-            Some(latest_file.file.path())
+            Some(file.file.path())
         }
-        _ => {
-            println!("Could not get today's date");
-            None
+        Err(_) => {
+            println!("No files in dir: {:}", cfg.notes_dir.unwrap());
+
+            let today_file_name = format!(
+                "{}-{:02}-{:02}.md",
+                today.year(),
+                today.month(),
+                today.day()
+            );
+            let mut today_file_path = data_dir.clone();
+            today_file_path.push(today_file_name);
+
+            let sections = &cfg.sections.unwrap();
+            let mut content = format!(
+                "# Today's tasks {}-{:02}-{:02}\n",
+                today.year(),
+                today.month(),
+                today.day()
+            );
+            sections
+                .iter()
+                .map(|section| TaskGroup::empty(section.to_string(), 2))
+                .for_each(|task_group| {
+                    content.push_str(format!("\n{}", task_group.to_string()).as_str())
+                });
+
+            let mut file = File::create(today_file_path.clone())
+                .expect("Could not open today's file: {today_file_path}");
+            write!(file, "{}", content).expect("Could not write to file: {today_file_path}");
+
+            Some(today_file_path)
         }
     };
 
