@@ -1,10 +1,9 @@
 mod config;
 mod todo;
-mod todo_file;
 
 use crate::config::Config;
 use crate::todo::{Status as TaskStatus, TaskGroup};
-use crate::todo_file::TodoFile;
+use crate::todo::file::TodoFile;
 use chrono::naive::NaiveDate;
 use chrono::{Datelike, Local};
 use comrak::nodes::{AstNode, NodeValue};
