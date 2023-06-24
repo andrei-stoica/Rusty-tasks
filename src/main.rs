@@ -43,11 +43,14 @@ fn main() {
     let cfg = Config::load(cfg_files.last().unwrap().to_str().unwrap()).unwrap();
 
     println!("{:#?}", cfg);
-    let data_dir = get_data_dir(&cfg.notes_dir.clone().expect("Could not get notes dir from config"));
+    let data_dir = get_data_dir(
+        &cfg.notes_dir
+            .clone()
+            .expect("Could not get notes dir from config"),
+    );
     println!("dir = {}", data_dir.to_str().unwrap());
 
-    let latest_file =
-        get_latest_file(&data_dir);
+    let latest_file = get_latest_file(&data_dir);
     println!("Latest file: {:?}", latest_file);
 
     let now = Local::now();
@@ -55,19 +58,11 @@ fn main() {
     let current_file = match latest_file {
         Ok(file) if file.date < today => {
             println!("Today's file does not exist, creating");
-            let today_file_name = format!(
-                "{}-{:02}-{:02}.md",
-                today.year(),
-                today.month(),
-                today.day()
-            );
-            let mut today_file_path = data_dir.clone();
-            today_file_path.push(today_file_name);
 
             let arena = Arena::new();
             let root = parse_todo_file(&file, &arena);
-            //println!("{:#?}", root);
 
+            //println!("{:#?}", root);
             //println!("=======================================================");
 
             let sections = &cfg.sections.unwrap();
@@ -76,71 +71,34 @@ fn main() {
 
             let level = groups.values().map(|group| group.level).min().unwrap_or(2);
 
-            sections
+            let data = sections
                 .iter()
                 .map(|section| match groups.get(section) {
                     Some(group) => group.clone(),
                     None => TaskGroup::empty(section.to_string(), level),
                 })
-                .for_each(|task_group| println!("{}", task_group.to_string()));
-            let mut content = format!(
-                "# Today's tasks {}-{:02}-{:02}\n",
-                today.year(),
-                today.month(),
-                today.day()
-            );
+                .collect();
 
-            sections
-                .iter()
-                .map(|section| match groups.get(section) {
-                    Some(group) => group.clone(),
-                    None => TaskGroup::empty(section.to_string(), level),
-                })
-                .for_each(|task_group| {
-                    content.push_str(format!("\n{}", task_group.to_string()).as_str())
-                });
+            let new_file = write_file(&data_dir, &today, &data);
 
-            let mut file = File::create(today_file_path.clone())
-                .expect("Could not open today's file: {today_file_path}");
-            write!(file, "{}", content).expect("Could not write to file: {today_file_path}");
-
-            Some(today_file_path)
-        }
-        Ok(file) => {
-            println!("Today's file was created");
-            Some(file.file.path())
+            Some(new_file)
         }
         Err(_) => {
             println!("No files in dir: {:}", cfg.notes_dir.unwrap());
 
-            let today_file_name = format!(
-                "{}-{:02}-{:02}.md",
-                today.year(),
-                today.month(),
-                today.day()
-            );
-            let mut today_file_path = data_dir.clone();
-            today_file_path.push(today_file_name);
-
             let sections = &cfg.sections.unwrap();
-            let mut content = format!(
-                "# Today's tasks {}-{:02}-{:02}\n",
-                today.year(),
-                today.month(),
-                today.day()
-            );
-            sections
+            let data = sections
                 .iter()
-                .map(|section| TaskGroup::empty(section.to_string(), 2))
-                .for_each(|task_group| {
-                    content.push_str(format!("\n{}", task_group.to_string()).as_str())
-                });
+                .map(|sec| TaskGroup::empty(sec.clone(), 2))
+                .collect();
 
-            let mut file = File::create(today_file_path.clone())
-                .expect("Could not open today's file: {today_file_path}");
-            write!(file, "{}", content).expect("Could not write to file: {today_file_path}");
+            let new_file = write_file(&data_dir, &today, &data);
 
-            Some(today_file_path)
+            Some(new_file)
+        }
+        Ok(file) => {
+            println!("Today's file was created");
+            Some(file.file.path())
         }
     };
 
@@ -151,6 +109,32 @@ fn main() {
             .expect(format!("failed to launch editor {}", "vim").as_str());
     };
 }
+
+fn write_file(data_dir: &PathBuf, date: &NaiveDate, data: &Vec<TaskGroup>) -> PathBuf {
+    let mut content = format!(
+        "# Today's tasks {}-{:02}-{:02}\n",
+        date.year(),
+        date.month(),
+        date.day()
+    );
+    data.iter()
+        .for_each(|task_group| content.push_str(format!("\n{}", task_group.to_string()).as_str()));
+
+    let file_name = format!(
+        "{}-{:02}-{:02}.md",
+        date.year(),
+        date.month(),
+        date.day()
+    );
+    let mut file_path = data_dir.clone();
+    file_path.push(file_name);
+
+    let mut file = File::create(&file_path).expect("Could not open today's file: {today_file_path}");
+    write!(file, "{}", content).expect("Could not write to file: {today_file_path}");
+
+    file_path
+}
+
 fn parse_todo_file<'a>(file: &TodoFile, arena: &'a Arena<AstNode<'a>>) -> &'a AstNode<'a> {
     let options = &ComrakOptions {
         extension: ComrakExtensionOptions {
