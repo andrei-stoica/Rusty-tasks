@@ -1,3 +1,5 @@
+pub mod file;
+
 use std::borrow::Borrow;
 
 use comrak::nodes::AstNode;
