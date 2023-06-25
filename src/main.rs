@@ -61,8 +61,8 @@ fn main() {
             let arena = Arena::new();
             let root = parse_todo_file(&file, &arena);
 
-            //println!("{:#?}", root);
-            //println!("=======================================================");
+            println!("{:#?}", root);
+            println!("=======================================================");
 
             let sections = &cfg.sections.unwrap();
             let groups = extract_secitons(root, sections);
