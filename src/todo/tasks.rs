@@ -15,7 +15,6 @@ pub struct TaskGroup {
 pub struct Task {
     pub status: Status,
     pub text: String,
-//    level: u8,
     pub subtasks: Option<Vec<Task>>,
 }
 
@@ -89,10 +88,10 @@ impl ToString for Task {
         };
 
         format!(
-            " - [{}] {}{}\n",
+            "- [{}] {}{}\n",
             ch,
             self.text.trim(),
-            subtasks.replace("\n", "\n   ")
+            subtasks.replace("\n", "\n  ")
         )
     }
 }
@@ -133,7 +132,6 @@ impl<'a> TryFrom<&'a AstNode<'a>> for Task {
                 status,
                 text,
                 subtasks,
- //               level: 1,
             })
         } else {
             Err(TaskError::ParsingError(
