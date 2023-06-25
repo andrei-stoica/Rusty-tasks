@@ -5,12 +5,12 @@ use std::fs::DirEntry;
 use std::str::FromStr;
 
 #[derive(Debug)]
-pub struct TodoFile {
+pub struct File {
     pub file: DirEntry,
     pub date: NaiveDate,
 }
 
-impl TodoFile {
+impl File {
     fn capture_as_number<T: FromStr>(capture: &regex::Captures, name: &str) -> Result<T, String> {
         Ok(capture
             .name(name)
@@ -21,7 +21,7 @@ impl TodoFile {
             .ok_or("Something went wrong".to_owned())?)
     }
 
-    pub fn latest_file(a: TodoFile, b: TodoFile) -> TodoFile {
+    pub fn latest_file(a: File, b: File) -> File {
         if a.date > b.date {
             a
         } else {
@@ -36,11 +36,11 @@ impl TodoFile {
     }
 }
 
-impl TryFrom<DirEntry> for TodoFile {
+impl TryFrom<DirEntry> for File {
     type Error = String;
 
     fn try_from(direntry: DirEntry) -> Result<Self, Self::Error> {
-        let re = TodoFile::get_file_regex();
+        let re = File::get_file_regex();
 //        println!("{:?}", re);
         let file_name = direntry.file_name();
         let file_name_str = match file_name.to_str() {
