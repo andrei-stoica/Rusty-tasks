@@ -24,6 +24,10 @@ pub enum Status {
     Empty,
 }
 
+pub enum TaskErorr {
+    ParsingError(&'static str),
+}
+
 impl Task {
     fn find_text<'a>(node: &'a AstNode<'a>) -> String {
         let mut text = String::new();
@@ -49,7 +53,7 @@ impl ToString for Task {
 }
 
 impl<'a> TryFrom<&'a AstNode<'a>> for Task {
-    type Error = String;
+    type Error = TaskErorr;
     fn try_from(node: &'a AstNode<'a>) -> Result<Self, Self::Error> {
         let data_ref = &node.data.borrow();
         if let NodeValue::TaskItem(ch) = data_ref.value {
@@ -62,7 +66,9 @@ impl<'a> TryFrom<&'a AstNode<'a>> for Task {
 
             Ok(Self { status, text })
         } else {
-            Err("Node being parsed is not a TaskItem".into())
+            Err(TaskErorr::ParsingError(
+                "Node being parsed is not a TaskItem",
+            ))
         }
     }
 }
@@ -89,7 +95,7 @@ impl ToString for TaskGroup {
 }
 
 impl<'a> TryFrom<&'a AstNode<'a>> for TaskGroup {
-    type Error = String;
+    type Error = TaskErorr;
     fn try_from(node: &'a AstNode<'a>) -> Result<Self, Self::Error> {
         let node_ref = &node.data.borrow();
         if let NodeValue::Heading(heading) = node_ref.value {
@@ -98,17 +104,21 @@ impl<'a> TryFrom<&'a AstNode<'a>> for TaskGroup {
             let first_child = if let Some(child) = first_child_ref.borrow() {
                 child
             } else {
-                return Err("".into());
+                return Err(TaskErorr::ParsingError("Node has no children"));
             };
 
             let data_ref = &first_child.data.borrow();
             let name = if let NodeValue::Text(value) = &data_ref.value {
                 value.to_string()
             } else {
-                return Err("".into());
+                return Err(TaskErorr::ParsingError(
+                    "Could not get title from heading node",
+                ));
             };
 
-            let next_sib = node.next_sibling().ok_or("Empty section at end of file")?;
+            let next_sib = node
+                .next_sibling()
+                .ok_or(TaskErorr::ParsingError("Empty section at end of file"))?;
 
             if let NodeValue::List(_list_meta) = next_sib.data.borrow().value {
                 let tasks = next_sib
@@ -119,10 +129,12 @@ impl<'a> TryFrom<&'a AstNode<'a>> for TaskGroup {
 
                 Ok(TaskGroup { name, tasks, level })
             } else {
-                Err("Next sibling of node is not a list".into())
+                Err(TaskErorr::ParsingError(
+                    "Next sibling of node is not a list",
+                ))
             }
         } else {
-            Err("Node is not a section heading".into())
+            Err(TaskErorr::ParsingError("Node is not a section heading"))
         }
     }
 }
