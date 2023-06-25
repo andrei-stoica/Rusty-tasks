@@ -66,7 +66,6 @@ impl Config {
         home_cfg.push(format!(".{}", cfg_name));
 
         let mut pwd_cfg = PathBuf::from(pwd.clone());
-        pwd_cfg.push(cfg_name);
         pwd_cfg.push(format!(".{}", cfg_name));
 
         Ok(vec![home_config_cfg, home_cfg, pwd_cfg])
