@@ -15,7 +15,7 @@ pub struct TaskGroup {
 pub struct Task {
     pub status: Status,
     pub text: String,
-    level: u8,
+//    level: u8,
     pub subtasks: Option<Vec<Task>>,
 }
 
@@ -31,17 +31,6 @@ pub enum TaskError {
 }
 
 impl Task {
-    fn find_text<'a>(node: &'a AstNode<'a>) -> String {
-        let mut text = String::new();
-        for child in node.descendants() {
-            let data_ref = child.data.borrow();
-            if let NodeValue::Text(contents) = &data_ref.value {
-                text.push_str(format!("{}\n       ", &contents.clone()).as_str());
-            };
-        }
-        text
-    }
-
     fn extract_text<'a>(node: &'a AstNode<'a>) -> Result<String, TaskError> {
         let data_ref = node.data.borrow();
         if let NodeValue::Text(contents) = &data_ref.value {
@@ -144,7 +133,7 @@ impl<'a> TryFrom<&'a AstNode<'a>> for Task {
                 status,
                 text,
                 subtasks,
-                level: 1,
+ //               level: 1,
             })
         } else {
             Err(TaskError::ParsingError(

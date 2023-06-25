@@ -10,6 +10,11 @@ pub struct File {
     pub date: NaiveDate,
 }
 
+pub enum FileError{
+    //IOError(&'static str),
+    ParseError(&'static str)
+}
+
 impl File {
     fn capture_as_number<T: FromStr>(capture: &regex::Captures, name: &str) -> Result<T, String> {
         Ok(capture
@@ -37,7 +42,7 @@ impl File {
 }
 
 impl TryFrom<DirEntry> for File {
-    type Error = String;
+    type Error = FileError;
 
     fn try_from(direntry: DirEntry) -> Result<Self, Self::Error> {
         let re = File::get_file_regex();
@@ -59,10 +64,6 @@ impl TryFrom<DirEntry> for File {
                 date: NaiveDate::from_ymd_opt(year, month, day).unwrap(),
             });
         };
-        Err(format!(
-            "Could not parse file name => {{ name: {:?}, re: {:?} }}",
-            file_name, re
-        )
-        .to_string())
+        Err(FileError::ParseError("Could not parse file name"))
     }
 }
