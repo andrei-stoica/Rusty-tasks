@@ -26,30 +26,37 @@ impl Default for Config {
     }
 }
 
+#[derive(Debug)]
+pub enum ConfigError{
+    IOError(&'static str),
+    ParseError(&'static str),
+    EnvError(&'static str)
+}
+
 impl Config {
-    pub fn load(cfg_file: &str) -> Result<Self, &'static str> {
+    pub fn load(cfg_file: &str) -> Result<Self, ConfigError> {
         Figment::from(Serialized::defaults(Config::default()))
             .merge(Env::raw().only(&["EDITOR"]))
             .merge(Json::file(cfg_file))
             .extract()
-            .or(Err("Could not load config"))
+            .or(Err(ConfigError::IOError("Could not load config")))
     }
 
-    pub fn write_default(cfg_file: &str) -> Result<(), &'static str> {
+    pub fn write_default(cfg_file: &str) -> Result<(), ConfigError> {
         let buf = serde_json::to_string_pretty(&Self::default())
-            .or_else(|_| return Err("could not serialize default config"))?;
+            .or_else(|_| return Err(ConfigError::ParseError("could not serialize default config")))?;
 
-        let mut f = File::create(cfg_file).or_else(|_| Err("Could not open config file"))?;
+        let mut f = File::create(cfg_file).or_else(|_| Err(ConfigError::IOError("Could not open config file")))?;
         f.write_all(&buf.as_bytes())
-            .or_else(|_| return Err("could not write default config to file"))?;
+            .or_else(|_| return Err(ConfigError::IOError("could not write default config to file")))?;
 
         Ok(())
     }
 
-    pub fn expected_locations() -> Result<Vec<PathBuf>, &'static str> {
+    pub fn expected_locations() -> Result<Vec<PathBuf>, ConfigError> {
         let cfg_name = "rusty_task.json";
-        let home = var("HOME").or(Err("$HOME environment variable not set"))?;
-        let pwd = var("PWD").or(Err("$PWD environment variable not set"))?;
+        let home = var("HOME").or(Err(ConfigError::EnvError("$HOME environment variable not set")))?;
+        let pwd = var("PWD").or(Err(ConfigError::EnvError("$PWD environment variable not set")))?;
 
         let mut home_config_cfg = PathBuf::from(home.clone());
         home_config_cfg.push(".config");
@@ -59,6 +66,7 @@ impl Config {
         home_cfg.push(format!(".{}", cfg_name));
 
         let mut pwd_cfg = PathBuf::from(pwd.clone());
+        pwd_cfg.push(cfg_name);
         pwd_cfg.push(format!(".{}", cfg_name));
 
         Ok(vec![home_config_cfg, home_cfg, pwd_cfg])
