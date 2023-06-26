@@ -2,8 +2,8 @@ mod config;
 mod todo;
 
 use crate::config::Config;
-use crate::todo::{Status as TaskStatus, TaskGroup};
 use crate::todo::File as TodoFile;
+use crate::todo::{Status as TaskStatus, TaskGroup};
 use chrono::naive::NaiveDate;
 use chrono::{Datelike, Local};
 use comrak::nodes::{AstNode, NodeValue};
@@ -55,11 +55,14 @@ fn main() {
     let now = Local::now();
     let today = NaiveDate::from_ymd_opt(now.year(), now.month(), now.day()).unwrap();
     let current_file = match latest_file {
-        Ok(file) if file.date < today => {
+        Ok(todo_file) if todo_file.date < today => {
             println!("Today's file does not exist, creating");
-
             let arena = Arena::new();
-            let root = parse_todo_file(&file, &arena);
+            let root = {
+                let contents = load_file(&todo_file);
+                let root = parse_todo_file(&contents, &arena);
+                root
+            };
 
             println!("{:#?}", root);
             println!("=======================================================");
@@ -78,38 +81,47 @@ fn main() {
                 })
                 .collect();
 
-            let new_file = write_file(&data_dir, &today, &data);
+            //            let new_file = write_file(&data_dir, &today, &data);
 
-            Some(new_file)
+            let content = generate_file_content(&data, &today);
+            let file_path = get_filepath(&data_dir, &today);
+            write_file(&file_path, &content);
+            file_path
         }
         Err(_) => {
             println!("No files in dir: {:}", cfg.notes_dir.unwrap());
-
             let sections = &cfg.sections.unwrap();
             let data = sections
                 .iter()
                 .map(|sec| TaskGroup::empty(sec.clone(), 2))
                 .collect();
 
-            let new_file = write_file(&data_dir, &today, &data);
-
-            Some(new_file)
+            let content = generate_file_content(&data, &today);
+            let file_path = get_filepath(&data_dir, &today);
+            write_file(&file_path, &content);
+            file_path
         }
-        Ok(file) => {
+        Ok(todo_file) => {
             println!("Today's file was created");
-            Some(file.file.path())
+            todo_file.file.path()
         }
     };
 
-    if let Some(file) = current_file {
-        Command::new(cfg.editor.expect("Could not resolve editor from config"))
-            .args([file])
-            .status()
-            .expect(format!("failed to launch editor {}", "vim").as_str());
-    };
+    Command::new(cfg.editor.expect("Could not resolve editor from config"))
+        .args([current_file])
+        .status()
+        .expect(format!("failed to launch editor {}", "vim").as_str());
 }
 
-fn write_file(data_dir: &PathBuf, date: &NaiveDate, data: &Vec<TaskGroup>) -> PathBuf {
+fn get_filepath(data_dir: &PathBuf, date: &NaiveDate) -> PathBuf {
+    let file_name = format!("{}-{:02}-{:02}.md", date.year(), date.month(), date.day());
+    let mut file_path = data_dir.clone();
+    file_path.push(file_name);
+
+    file_path
+}
+
+fn generate_file_content(data: &Vec<TaskGroup>, date: &NaiveDate) -> String {
     let mut content = format!(
         "# Today's tasks {}-{:02}-{:02}\n",
         date.year(),
@@ -119,22 +131,30 @@ fn write_file(data_dir: &PathBuf, date: &NaiveDate, data: &Vec<TaskGroup>) -> Pa
     data.iter()
         .for_each(|task_group| content.push_str(format!("\n{}", task_group.to_string()).as_str()));
 
-    let file_name = format!(
-        "{}-{:02}-{:02}.md",
-        date.year(),
-        date.month(),
-        date.day()
-    );
-    let mut file_path = data_dir.clone();
-    file_path.push(file_name);
-
-    let mut file = File::create(&file_path).expect("Could not open today's file: {today_file_path}");
-    write!(file, "{}", content).expect("Could not write to file: {today_file_path}");
-
-    file_path
+    content
 }
 
-fn parse_todo_file<'a>(file: &TodoFile, arena: &'a Arena<AstNode<'a>>) -> &'a AstNode<'a> {
+fn write_file(path: &PathBuf, content: &String) {
+    let mut new_file =
+        File::create(&path).expect("Could not open today's file: {today_file_path}");
+    write!(new_file, "{}", content).expect("Could not write to file: {today_file_path}");
+}
+
+fn load_file(file: &TodoFile) -> String {
+    let contents_utf8 = read(file.file.path())
+        .expect(format!("Could not read file {}", file.file.path().to_string_lossy()).as_str());
+    str::from_utf8(&contents_utf8)
+        .expect(
+            format!(
+                "failed to convert contents of file to string: {}",
+                file.file.path().to_string_lossy()
+            )
+            .as_str(),
+        )
+        .to_string()
+}
+
+fn parse_todo_file<'a>(contents: &String, arena: &'a Arena<AstNode<'a>>) -> &'a AstNode<'a> {
     let options = &ComrakOptions {
         extension: ComrakExtensionOptions {
             tasklist: true,
@@ -146,17 +166,6 @@ fn parse_todo_file<'a>(file: &TodoFile, arena: &'a Arena<AstNode<'a>>) -> &'a As
         },
         ..ComrakOptions::default()
     };
-
-    let contents_utf8 = read(file.file.path())
-        .expect(format!("Could not read file {}", file.file.path().to_string_lossy()).as_str());
-    let contents = str::from_utf8(&contents_utf8).expect(
-        format!(
-            "failed to convert contents of file to string: {}",
-            file.file.path().to_string_lossy()
-        )
-        .as_str(),
-    );
-
     parse_document(arena, contents, options)
 }
 

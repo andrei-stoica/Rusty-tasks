@@ -76,23 +76,17 @@ impl ToString for Task {
         };
 
         let subtasks = if let Some(subtasks) = &self.subtasks {
-            let mut text = subtasks
+            let text = subtasks
                 .iter()
                 .map(|task| task.to_string())
                 .collect::<Vec<_>>()
                 .join("\n");
-            text.insert(0, '\n');
-            text.trim_end().to_string()
+            format!("\n{}", text).trim_end().replace("\n",  "\n  ")
         } else {
             "".into()
         };
 
-        format!(
-            "- [{}] {}{}\n",
-            ch,
-            self.text.trim(),
-            subtasks.replace("\n", "\n  ")
-        )
+        format!("- [{}] {}{}\n", ch, self.text.trim(), subtasks)
     }
 }
 
