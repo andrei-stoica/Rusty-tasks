@@ -12,7 +12,7 @@ use comrak::{ComrakExtensionOptions, ComrakOptions, ComrakParseOptions};
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::env;
-use std::fs::{read, read_dir, File};
+use std::fs::{read, read_dir, create_dir_all, File, metadata};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -39,7 +39,13 @@ fn main() {
             println!("Could not write to default cfg location: {:#?}", e);
         }
     }
-    let cfg = Config::load(cfg_files.last().unwrap().to_str().unwrap()).unwrap();
+
+    let cfg_file = match cfg_files.last() {
+        None => expected_cfg_files[0].to_str().unwrap(),
+        Some(file) => file.to_str().unwrap()
+    };
+
+    let cfg = Config::load(cfg_file).unwrap();
 
     println!("{:#?}", cfg);
     let data_dir = get_data_dir(
@@ -47,7 +53,11 @@ fn main() {
             .clone()
             .expect("Could not get notes dir from config"),
     );
+    if !metadata(&data_dir).is_ok() {
+        create_dir_all(&data_dir);
+    }
     println!("dir = {}", data_dir.to_str().unwrap());
+
 
     let latest_file = get_latest_file(&data_dir);
     println!("Latest file: {:?}", latest_file);
