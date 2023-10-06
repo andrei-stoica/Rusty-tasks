@@ -12,7 +12,7 @@ use comrak::{ComrakExtensionOptions, ComrakOptions, ComrakParseOptions};
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::env;
-use std::fs::{read, read_dir, create_dir_all, File, metadata};
+use std::fs::{create_dir_all, metadata, read, read_dir, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -42,7 +42,7 @@ fn main() {
 
     let cfg_file = match cfg_files.last() {
         None => expected_cfg_files[0].to_str().unwrap(),
-        Some(file) => file.to_str().unwrap()
+        Some(file) => file.to_str().unwrap(),
     };
 
     let cfg = Config::load(cfg_file).unwrap();
@@ -54,10 +54,15 @@ fn main() {
             .expect("Could not get notes dir from config"),
     );
     if !metadata(&data_dir).is_ok() {
-        create_dir_all(&data_dir);
+        if let Err(e) = create_dir_all(&data_dir) {
+            println!(
+                "Could not create defult directory({}): {:#?}",
+                &data_dir.to_str().unwrap(),
+                e
+            );
+        };
     }
     println!("dir = {}", data_dir.to_str().unwrap());
-
 
     let latest_file = get_latest_file(&data_dir);
     println!("Latest file: {:?}", latest_file);
@@ -145,8 +150,7 @@ fn generate_file_content(data: &Vec<TaskGroup>, date: &NaiveDate) -> String {
 }
 
 fn write_file(path: &PathBuf, content: &String) {
-    let mut new_file =
-        File::create(&path).expect("Could not open today's file: {today_file_path}");
+    let mut new_file = File::create(&path).expect("Could not open today's file: {today_file_path}");
     write!(new_file, "{}", content).expect("Could not write to file: {today_file_path}");
 }
 
