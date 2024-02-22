@@ -13,7 +13,6 @@ use chrono::{Datelike, Local};
 use comrak::nodes::{AstNode, NodeValue};
 use comrak::{parse_document, Arena};
 use comrak::{ComrakExtensionOptions, ComrakOptions, ComrakParseOptions};
-use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fs::{create_dir_all, metadata, read, read_dir, File};
 use std::io::{self, Write};
@@ -34,14 +33,14 @@ enum ExitError {
 }
 
 fn main() -> Result<(), ExitError> {
+    let args = Args::parse();
+
     let expected_cfg_files = Config::expected_locations().unwrap();
-    println!("{:#?}", expected_cfg_files);
     let cfg_files: Vec<&Path> = expected_cfg_files
         .iter()
         .map(|file| Path::new(file))
         .filter(|file| file.exists())
         .collect();
-    println!("{:#?}", cfg_files);
 
     if cfg_files.len() <= 0 {
         let status = Config::write_default(expected_cfg_files[0].to_str().unwrap());
@@ -53,12 +52,20 @@ fn main() -> Result<(), ExitError> {
         }
     }
 
-    let cfg_file = match cfg_files.last() {
-        None => expected_cfg_files[0].to_str().unwrap(),
-        Some(file) => file.to_str().unwrap(),
+    let cfg_file = match args.config {
+        Some(file) => file,
+        None => match cfg_files.last() {
+            None => expected_cfg_files[0].to_string_lossy().to_string(),
+            Some(file) => file.to_string_lossy().to_string(),
+        },
     };
 
-    let cfg = Config::load(cfg_file).unwrap();
+    if args.current_config {
+        println!("{}", &cfg_file);
+        return Ok(());
+    }
+
+    let cfg = Config::load(&cfg_file).unwrap();
 
     println!("{:#?}", cfg);
     let data_dir = match &cfg.notes_dir {
@@ -131,9 +138,7 @@ fn main() -> Result<(), ExitError> {
             let data = sections
                 .iter()
                 .map(|sec| TaskGroup::empty(sec.clone(), 2))
-                .collect();
-
-            let content = generate_file_content(&data, &today);
+                .collect(); let content = generate_file_content(&data, &today);
             let file_path = get_filepath(&data_dir, &today);
             write_file(&file_path, &content);
             file_path
@@ -220,7 +225,7 @@ fn extract_secitons<'a>(
             }
 
             let first_child_ref = &node.first_child();
-            let first_child = if let Some(child) = first_child_ref.borrow() {
+            let first_child = if let Some(child) = first_child_ref {
                 child
             } else {
                 continue;

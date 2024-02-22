@@ -163,7 +163,7 @@ impl<'a> TryFrom<&'a AstNode<'a>> for TaskGroup {
         if let NodeValue::Heading(heading) = node_ref.value {
             let level = heading.level;
             let first_child_ref = &node.first_child();
-            let first_child = if let Some(child) = first_child_ref.borrow() {
+            let first_child = if let Some(child) = first_child_ref {
                 child
             } else {
                 return Err(TaskError::ParsingError("Node has no children"));
