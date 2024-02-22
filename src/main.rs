@@ -15,13 +15,8 @@ use comrak::{parse_document, Arena};
 use comrak::{ComrakExtensionOptions, ComrakOptions, ComrakParseOptions};
 use std::borrow::Borrow;
 use std::collections::HashMap;
-<<<<<<< Updated upstream
-use std::env;
 use std::fs::{create_dir_all, metadata, read, read_dir, File};
-=======
-use std::fs::{read, read_dir, File};
->>>>>>> Stashed changes
-use std::io::Write;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{env, str};
@@ -35,6 +30,7 @@ use std::{env, str};
 #[derive(Debug)]
 enum ExitError {
     ConfigError(String),
+    IOError(String, io::Error),
 }
 
 fn main() -> Result<(), ExitError> {
@@ -50,7 +46,10 @@ fn main() -> Result<(), ExitError> {
     if cfg_files.len() <= 0 {
         let status = Config::write_default(expected_cfg_files[0].to_str().unwrap());
         if let Err(e) = status {
-            println!("Could not write to default cfg location: {:#?}", e);
+            return Err(ExitError::ConfigError(format!(
+                "Could not write to default cfg location: {:#?}",
+                e
+            )));
         }
     }
 
@@ -62,18 +61,27 @@ fn main() -> Result<(), ExitError> {
     let cfg = Config::load(cfg_file).unwrap();
 
     println!("{:#?}", cfg);
-    let data_dir = get_data_dir(
-        &cfg.notes_dir
-            .clone()
-            .expect("Could not get notes dir from config"),
-    );
+    let data_dir = match &cfg.notes_dir {
+        Some(dir) => get_data_dir(dir),
+        _ => {
+            return Err(ExitError::ConfigError(
+                "Could not get notes dir from config".to_string(),
+            ))
+        }
+    };
+
     if !metadata(&data_dir).is_ok() {
-        if let Err(e) = create_dir_all(&data_dir) {
-            println!(
-                "Could not create defult directory({}): {:#?}",
-                &data_dir.to_str().unwrap(),
-                e
-            );
+        match create_dir_all(&data_dir) {
+            Err(e) => {
+                return Err(ExitError::IOError(
+                    format!(
+                        "Could not create defult directory: {}",
+                        &data_dir.to_str().unwrap(),
+                    ),
+                    e,
+                ))
+            }
+            _ => (),
         };
     }
     println!("dir = {}", data_dir.to_str().unwrap());
