@@ -1,5 +1,9 @@
+mod cli;
 mod config;
 mod todo;
+
+use crate::cli::Args;
+use clap::Parser;
 
 use crate::config::Config;
 use crate::todo::File as TodoFile;
@@ -11,19 +15,29 @@ use comrak::{parse_document, Arena};
 use comrak::{ComrakExtensionOptions, ComrakOptions, ComrakParseOptions};
 use std::borrow::Borrow;
 use std::collections::HashMap;
+<<<<<<< Updated upstream
 use std::env;
 use std::fs::{create_dir_all, metadata, read, read_dir, File};
+=======
+use std::fs::{read, read_dir, File};
+>>>>>>> Stashed changes
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::str;
+use std::{env, str};
 
 //TODO handle unwraps and errors more uniformly
 //TODO refactor creating new file
 //TODO clean up verbose printing
 //TODO create custom errors for better error handling
+//TODO Default path for note_dir should start with curent path not home
 
-fn main() {
+#[derive(Debug)]
+enum ExitError {
+    ConfigError(String),
+}
+
+fn main() -> Result<(), ExitError> {
     let expected_cfg_files = Config::expected_locations().unwrap();
     println!("{:#?}", expected_cfg_files);
     let cfg_files: Vec<&Path> = expected_cfg_files
@@ -126,6 +140,8 @@ fn main() {
         .args([current_file])
         .status()
         .expect(format!("failed to launch editor {}", "vim").as_str());
+
+    Ok(())
 }
 
 fn get_filepath(data_dir: &PathBuf, date: &NaiveDate) -> PathBuf {

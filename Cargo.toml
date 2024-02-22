@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 chrono = "0.4.26"
+clap = { version = "4.5.1", features = ["derive"] }
 comrak = "0.18.0"
 figment = { version = "0.10.10", features = ["env", "serde_json", "json"] }
 regex = "1.8.4"
