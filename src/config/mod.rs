@@ -27,10 +27,10 @@ impl Default for Config {
 }
 
 #[derive(Debug)]
-pub enum ConfigError{
+pub enum ConfigError {
     IOError(&'static str),
     ParseError(&'static str),
-    EnvError(&'static str)
+    EnvError(&'static str),
 }
 
 impl Config {
@@ -43,20 +43,31 @@ impl Config {
     }
 
     pub fn write_default(cfg_file: &str) -> Result<(), ConfigError> {
-        let buf = serde_json::to_string_pretty(&Self::default())
-            .or_else(|_| return Err(ConfigError::ParseError("could not serialize default config")))?;
+        let buf = serde_json::to_string_pretty(&Self::default()).or_else(|_| {
+            return Err(ConfigError::ParseError(
+                "could not serialize default config",
+            ));
+        })?;
 
-        let mut f = File::create(cfg_file).or_else(|_| Err(ConfigError::IOError("Could not open config file")))?;
-        f.write_all(&buf.as_bytes())
-            .or_else(|_| return Err(ConfigError::IOError("could not write default config to file")))?;
+        let mut f = File::create(cfg_file)
+            .or_else(|_| Err(ConfigError::IOError("Could not open config file")))?;
+        f.write_all(&buf.as_bytes()).or_else(|_| {
+            return Err(ConfigError::IOError(
+                "could not write default config to file",
+            ));
+        })?;
 
         Ok(())
     }
 
     pub fn expected_locations() -> Result<Vec<PathBuf>, ConfigError> {
         let cfg_name = "rusty_task.json";
-        let home = var("HOME").or(Err(ConfigError::EnvError("$HOME environment variable not set")))?;
-        let pwd = var("PWD").or(Err(ConfigError::EnvError("$PWD environment variable not set")))?;
+        let home = var("HOME").or(Err(ConfigError::EnvError(
+            "$HOME environment variable not set",
+        )))?;
+        let pwd = var("PWD").or(Err(ConfigError::EnvError(
+            "$PWD environment variable not set",
+        )))?;
 
         let mut home_config_cfg = PathBuf::from(home.clone());
         home_config_cfg.push(".config");

@@ -5,7 +5,7 @@ mod todo;
 use crate::cli::Args;
 use clap::Parser;
 
-use crate::config::Config;
+use crate::config::{Config, ConfigError};
 use crate::todo::File as TodoFile;
 use crate::todo::{Status as TaskStatus, TaskGroup};
 use chrono::naive::NaiveDate;
@@ -26,16 +26,21 @@ use std::{env, str};
 //TODO create custom errors for better error handling
 //TODO Default path for note_dir should start with curent path not home
 
+// Nested errors look bad, code smell?
 #[derive(Debug)]
 enum ExitError {
-    ConfigError(String),
+    ConfigError(ConfigError),
     IOError(String, io::Error),
 }
 
 fn main() -> Result<(), ExitError> {
     let args = Args::parse();
 
-    let expected_cfg_files = Config::expected_locations().unwrap();
+    let expected_cfg_files = match Config::expected_locations() {
+        Err(e) => return Err(ExitError::ConfigError(e)),
+        Ok(cfg_files) => cfg_files,
+    };
+
     let cfg_files: Vec<&Path> = expected_cfg_files
         .iter()
         .map(|file| Path::new(file))
@@ -43,12 +48,9 @@ fn main() -> Result<(), ExitError> {
         .collect();
 
     if cfg_files.len() <= 0 {
-        let status = Config::write_default(expected_cfg_files[0].to_str().unwrap());
-        if let Err(e) = status {
-            return Err(ExitError::ConfigError(format!(
-                "Could not write to default cfg location: {:#?}",
-                e
-            )));
+        match Config::write_default(expected_cfg_files[0].to_str()?) {
+            Err(e) => return Err(ExitError::ConfigError(e)),
+            _ => (),
         }
     }
 
@@ -71,9 +73,9 @@ fn main() -> Result<(), ExitError> {
     let data_dir = match &cfg.notes_dir {
         Some(dir) => get_data_dir(dir),
         _ => {
-            return Err(ExitError::ConfigError(
-                "Could not get notes dir from config".to_string(),
-            ))
+            return Err(ExitError::ConfigError(ConfigError::IOError(
+                "Could not get notes dir from config",
+            )))
         }
     };
 
@@ -125,8 +127,6 @@ fn main() -> Result<(), ExitError> {
                 })
                 .collect();
 
-            //            let new_file = write_file(&data_dir, &today, &data);
-
             let content = generate_file_content(&data, &today);
             let file_path = get_filepath(&data_dir, &today);
             write_file(&file_path, &content);
@@ -138,7 +138,8 @@ fn main() -> Result<(), ExitError> {
             let data = sections
                 .iter()
                 .map(|sec| TaskGroup::empty(sec.clone(), 2))
-                .collect(); let content = generate_file_content(&data, &today);
+                .collect();
+            let content = generate_file_content(&data, &today);
             let file_path = get_filepath(&data_dir, &today);
             write_file(&file_path, &content);
             file_path
