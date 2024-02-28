@@ -5,7 +5,7 @@ mod todo;
 use crate::cli::Args;
 use clap::Parser;
 
-use crate::config::{Config, ConfigError};
+use crate::config::Config;
 use crate::todo::File as TodoFile;
 use crate::todo::{Status as TaskStatus, TaskGroup};
 use chrono::naive::NaiveDate;
@@ -13,32 +13,22 @@ use chrono::{Datelike, Local};
 use comrak::nodes::{AstNode, NodeValue};
 use comrak::{parse_document, Arena};
 use comrak::{ComrakExtensionOptions, ComrakOptions, ComrakParseOptions};
+use resolve_path::PathResolveExt;
 use std::collections::HashMap;
 use std::fs::{create_dir_all, metadata, read, read_dir, File};
-use std::io::{self, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::{env, str};
+use std::str;
 
-//TODO handle unwraps and errors more uniformly
 //TODO refactor creating new file
-//TODO clean up verbose printing
-//TODO create custom errors for better error handling
-//TODO Default path for note_dir should start with curent path not home
 
-// Nested errors look bad, code smell?
-#[derive(Debug)]
-enum ExitError {
-    ConfigError(ConfigError),
-    IOError(String, io::Error),
-}
-
-fn main() -> Result<(), ExitError> {
+fn main() {
     let args = Args::parse();
 
     let expected_cfg_files = match Config::expected_locations() {
-        Err(e) => return Err(ExitError::ConfigError(e)),
         Ok(cfg_files) => cfg_files,
+        Err(e) => panic!("{:?}", e),
     };
 
     let cfg_files: Vec<&Path> = expected_cfg_files
@@ -48,9 +38,11 @@ fn main() -> Result<(), ExitError> {
         .collect();
 
     if cfg_files.len() <= 0 {
-        match Config::write_default(expected_cfg_files[0].to_str()?) {
-            Err(e) => return Err(ExitError::ConfigError(e)),
-            _ => (),
+        if let Err(e) = Config::write_default(match expected_cfg_files[0].to_str() {
+            Some(s) => s,
+            None => panic!("Could not resolve expected cfg file paths"),
+        }) {
+            panic!("Could not write config: {:?}", e);
         }
     }
 
@@ -64,45 +56,29 @@ fn main() -> Result<(), ExitError> {
 
     if args.current_config {
         println!("{}", &cfg_file);
-        return Ok(());
+        return;
     }
 
-    let cfg = Config::load(&cfg_file).unwrap();
-
-    println!("{:#?}", cfg);
-    let data_dir = match &cfg.notes_dir {
-        Some(dir) => get_data_dir(dir),
-        _ => {
-            return Err(ExitError::ConfigError(ConfigError::IOError(
-                "Could not get notes dir from config",
-            )))
-        }
+    let cfg = match Config::load(&cfg_file) {
+        Ok(cfg) => cfg,
+        Err(_e) => panic!("could not load config: {}", cfg_file),
     };
+
+    let data_dir = cfg.notes_dir.resolve().to_path_buf();
 
     if !metadata(&data_dir).is_ok() {
         match create_dir_all(&data_dir) {
-            Err(e) => {
-                return Err(ExitError::IOError(
-                    format!(
-                        "Could not create defult directory: {}",
-                        &data_dir.to_str().unwrap(),
-                    ),
-                    e,
-                ))
-            }
+            Err(_e) => panic!("Could not create defult directory: {:?}", &data_dir),
             _ => (),
         };
     }
-    println!("dir = {}", data_dir.to_str().unwrap());
 
     let latest_file = get_latest_file(&data_dir);
-    println!("Latest file: {:?}", latest_file);
 
     let now = Local::now();
     let today = NaiveDate::from_ymd_opt(now.year(), now.month(), now.day()).unwrap();
     let current_file = match latest_file {
         Ok(todo_file) if todo_file.date < today => {
-            println!("Today's file does not exist, creating");
             let arena = Arena::new();
             let root = {
                 let contents = load_file(&todo_file);
@@ -110,12 +86,9 @@ fn main() -> Result<(), ExitError> {
                 root
             };
 
-            println!("{:#?}", root);
-            println!("=======================================================");
+            let sections = &cfg.sections;
 
-            let sections = &cfg.sections.unwrap();
             let groups = extract_secitons(root, sections);
-            println!("{:#?}", groups);
 
             let level = groups.values().map(|group| group.level).min().unwrap_or(2);
 
@@ -133,8 +106,7 @@ fn main() -> Result<(), ExitError> {
             file_path
         }
         Err(_) => {
-            println!("No files in dir: {:}", cfg.notes_dir.unwrap());
-            let sections = &cfg.sections.unwrap();
+            let sections = &cfg.sections;
             let data = sections
                 .iter()
                 .map(|sec| TaskGroup::empty(sec.clone(), 2))
@@ -144,18 +116,13 @@ fn main() -> Result<(), ExitError> {
             write_file(&file_path, &content);
             file_path
         }
-        Ok(todo_file) => {
-            println!("Today's file was created");
-            todo_file.file.path()
-        }
+        Ok(todo_file) => todo_file.file.path(),
     };
 
-    Command::new(cfg.editor.expect("Could not resolve editor from config"))
+    Command::new(cfg.editor)
         .args([current_file])
         .status()
         .expect(format!("failed to launch editor {}", "vim").as_str());
-
-    Ok(())
 }
 
 fn get_filepath(data_dir: &PathBuf, date: &NaiveDate) -> PathBuf {
@@ -239,7 +206,6 @@ fn extract_secitons<'a>(
                 continue;
             };
 
-            println!("Attempting to parse {}", title);
             if sections.iter().any(|section| section.eq(title)) {
                 if let Ok(mut group) = TaskGroup::try_from(node) {
                     group.tasks = group
@@ -253,19 +219,6 @@ fn extract_secitons<'a>(
         };
     }
     groups
-}
-
-fn get_data_dir(dir_name: &str) -> PathBuf {
-    let mut dir = match env::var("HOME") {
-        Ok(home) => {
-            let mut x = PathBuf::new();
-            x.push(home);
-            x
-        }
-        _ => env::current_dir().expect("PWD environment variable not set"),
-    };
-    dir = dir.join(dir_name);
-    dir
 }
 
 fn get_latest_file(dir: &Path) -> Result<TodoFile, String> {

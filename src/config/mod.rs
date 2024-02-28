@@ -11,17 +11,17 @@ use std::path::PathBuf;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Config {
-    pub editor: Option<String>,
-    pub sections: Option<Vec<String>>,
-    pub notes_dir: Option<String>,
+    pub editor: String,
+    pub sections: Vec<String>,
+    pub notes_dir: String,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Config {
-            editor: Some("nano".into()),
-            sections: Some(vec!["Daily".into(), "Weekly".into(), "Monthly".into()]),
-            notes_dir: Some("Notes".into()),
+            editor: "nano".into(),
+            sections: vec!["Daily".into(), "Weekly".into(), "Monthly".into()],
+            notes_dir: "./Notes".into(),
         }
     }
 }
@@ -44,17 +44,17 @@ impl Config {
 
     pub fn write_default(cfg_file: &str) -> Result<(), ConfigError> {
         let buf = serde_json::to_string_pretty(&Self::default()).or_else(|_| {
-            return Err(ConfigError::ParseError(
+            Err(ConfigError::ParseError(
                 "could not serialize default config",
-            ));
+            ))
         })?;
 
         let mut f = File::create(cfg_file)
             .or_else(|_| Err(ConfigError::IOError("Could not open config file")))?;
         f.write_all(&buf.as_bytes()).or_else(|_| {
-            return Err(ConfigError::IOError(
+            Err(ConfigError::IOError(
                 "could not write default config to file",
-            ));
+            ))
         })?;
 
         Ok(())
