@@ -21,7 +21,7 @@ impl Default for Config {
         Config {
             editor: "nano".into(),
             sections: vec!["Daily".into(), "Weekly".into(), "Monthly".into()],
-            notes_dir: "./Notes".into(),
+            notes_dir: "~/Notes".into(),
         }
     }
 }
