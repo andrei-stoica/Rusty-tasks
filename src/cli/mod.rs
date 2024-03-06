@@ -10,4 +10,8 @@ pub struct Args {
     /// show current config file
     #[arg(short = 'C', long)]
     pub current_config: bool,
+
+    /// veiw previous day's notes
+    #[arg(short = 'p', long, default_value_t = 0)]
+    pub previous: u16,
 }

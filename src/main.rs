@@ -15,10 +15,9 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-//TODO refactor creating new file
-
 fn main() {
     let args = Args::parse();
+    println!("previous = {}", args.previous);
 
     let expected_cfg_files = match Config::expected_locations() {
         Ok(cfg_files) => cfg_files,
@@ -113,8 +112,8 @@ fn main() {
         Ok(todo_file) => todo_file.file.path(),
     };
 
-    Command::new(cfg.editor)
+    Command::new(&cfg.editor)
         .args([current_file])
         .status()
-        .expect(format!("failed to launch editor {}", "vim").as_str());
+        .expect(format!("failed to launch editor {}", &cfg.editor).as_str());
 }
