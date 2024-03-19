@@ -61,7 +61,7 @@ fn main() {
 
     if !fs::metadata(&data_dir).is_ok() {
         match fs::create_dir_all(&data_dir) {
-            Err(_e) => panic!("Could not create defult directory: {:?}", &data_dir),
+            Err(_e) => panic!("Could not create default directory: {:?}", &data_dir),
             _ => (),
         };
     }
@@ -72,13 +72,11 @@ fn main() {
         .map(|file| file.path());
     let today = Local::now().date_naive();
     let target = today - TimeDelta::try_days(args.previous.into()).unwrap();
-    let cloesest_files = TodoFile::get_closest_files(files.collect(), target, 5);
-    println!("{:?}", cloesest_files);
+    let closest_files = TodoFile::get_closest_files(files.collect(), target, 5);
+    println!("{:?}", closest_files);
 
-    let latest_file = cloesest_files.first().ok_or("");
+    let latest_file = closest_files.first().ok_or("");
 
-    let now = Local::now();
-    let today = NaiveDate::from_ymd_opt(now.year(), now.month(), now.day()).unwrap();
     let current_file = match latest_file {
         Ok(todo_file) if todo_file.date < today => {
             let arena = Arena::new();
