@@ -30,14 +30,6 @@ impl File {
             .ok_or("Something went wrong".to_owned())?)
     }
 
-    pub fn latest_file(a: File, b: File) -> File {
-        if a.date > b.date {
-            a
-        } else {
-            b
-        }
-    }
-
     fn get_file_regex() -> Regex {
         //TODO This would ideally be configurable
         Regex::new(r"(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2}).md")
@@ -171,9 +163,7 @@ mod test {
             NaiveDate::from_ymd_opt(2023, 12, 30).unwrap(),
             3,
         );
-        let expected_res = vec![
-            File::try_from(PathBuf::from("./2024-01-01.md")).unwrap(),
-        ];
+        let expected_res = vec![File::try_from(PathBuf::from("./2024-01-01.md")).unwrap()];
         assert_eq!(res, expected_res);
     }
 }

@@ -11,7 +11,13 @@ pub struct Args {
     #[arg(short = 'C', long)]
     pub current_config: bool,
 
-    /// veiw previous day's notes
+    /// view previous day's notes
     #[arg(short = 'p', long, default_value_t = 0)]
     pub previous: u16,
+    /// list closest files to date
+    #[arg(short, long)]
+    pub list: bool,
+    /// list closest files to date
+    #[arg(short = 'L', long)]
+    pub list_all: bool,
 }

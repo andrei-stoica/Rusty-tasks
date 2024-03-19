@@ -7,7 +7,7 @@ use crate::cli::Args;
 use crate::config::Config;
 use crate::todo::{File as TodoFile, TaskGroup};
 use chrono::naive::NaiveDate;
-use chrono::{Datelike, Local, TimeDelta};
+use chrono::{Local, TimeDelta};
 use clap::Parser;
 use comrak::Arena;
 use resolve_path::PathResolveExt;
@@ -17,7 +17,7 @@ use std::process::Command;
 
 fn main() {
     let args = Args::parse();
-    println!("previous = {}", args.previous);
+    println!("{:?}", args);
 
     let expected_cfg_files = match Config::expected_locations() {
         Ok(cfg_files) => cfg_files,
@@ -70,28 +70,36 @@ fn main() {
         .expect(format!("Could not find notes folder: {:?}", &data_dir).as_str())
         .filter_map(|f| f.ok())
         .map(|file| file.path());
+    if args.list_all {
+        files
+            .into_iter()
+            .for_each(|f| println!("{}", f.canonicalize().unwrap().to_string_lossy()));
+        return ();
+    }
+
     let today = Local::now().date_naive();
     let target = today - TimeDelta::try_days(args.previous.into()).unwrap();
     let closest_files = TodoFile::get_closest_files(files.collect(), target, 5);
-    println!("{:?}", closest_files);
+    if args.list {
+        closest_files
+            .into_iter()
+            .for_each(|f| println!("{}", f.file.canonicalize().unwrap().to_string_lossy()));
+        return ();
+    }
 
-    let latest_file = closest_files.first().ok_or("");
-
+    let latest_file = closest_files.first();
     let current_file = match latest_file {
-        Ok(todo_file) if todo_file.date < today => {
+        Some(todo_file) if todo_file.date < today && args.previous == 0 => {
+            let sections = &cfg.sections;
             let arena = Arena::new();
+
             let root = {
                 let contents = file::load_file(&todo_file);
                 let root = file::parse_todo_file(&contents, &arena);
                 root
             };
-
-            let sections = &cfg.sections;
-
             let groups = file::extract_secitons(root, sections);
-
             let level = groups.values().map(|group| group.level).min().unwrap_or(2);
-
             let data = sections
                 .iter()
                 .map(|section| match groups.get(section) {
@@ -105,7 +113,8 @@ fn main() {
             file::write_file(&file_path, &content);
             file_path
         }
-        Err(_) => {
+        Some(todo_file) => todo_file.file.clone(),
+        None => {
             let sections = &cfg.sections;
             let data = sections
                 .iter()
@@ -116,7 +125,6 @@ fn main() {
             file::write_file(&file_path, &content);
             file_path
         }
-        Ok(todo_file) => todo_file.file.clone(),
     };
 
     Command::new(&cfg.editor)

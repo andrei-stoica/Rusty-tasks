@@ -6,9 +6,9 @@ use comrak::nodes::{AstNode, NodeValue};
 use comrak::parse_document;
 use comrak::{Arena, ComrakExtensionOptions, ComrakOptions, ComrakParseOptions};
 use std::collections::HashMap;
-use std::fs::{read, read_dir, File};
+use std::fs::{read, File};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::str;
 
 #[derive(Debug)]
@@ -110,12 +110,4 @@ pub fn extract_secitons<'a>(
         };
     }
     groups
-}
-
-pub fn get_latest_file(dir: &Path) -> Result<TodoFile, String> {
-    let dir = read_dir(dir).expect(format!("Could not find notes folder: {:?}", dir).as_str());
-    dir.filter_map(|f| f.ok())
-        .filter_map(|file| TodoFile::try_from(file).ok())
-        .reduce(|a, b| TodoFile::latest_file(a, b))
-        .ok_or("Could not reduce items".to_string())
 }
