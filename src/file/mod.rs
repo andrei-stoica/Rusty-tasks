@@ -11,12 +11,6 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct DatedPathBuf {
-    path: PathBuf,
-    date: NaiveDate,
-}
-
 #[derive(Debug)]
 pub enum FileNameParseError {
     TypeConversionError(&'static str),
@@ -49,13 +43,13 @@ pub fn write_file(path: &PathBuf, content: &String) {
 }
 
 pub fn load_file(file: &TodoFile) -> String {
-    let contents_utf8 = read(file.file.path())
-        .expect(format!("Could not read file {}", file.file.path().to_string_lossy()).as_str());
+    let contents_utf8 = read(file.file.clone())
+        .expect(format!("Could not read file {}", file.file.to_string_lossy()).as_str());
     str::from_utf8(&contents_utf8)
         .expect(
             format!(
                 "failed to convert contents of file to string: {}",
-                file.file.path().to_string_lossy()
+                file.file.to_string_lossy()
             )
             .as_str(),
         )
@@ -124,87 +118,4 @@ pub fn get_latest_file(dir: &Path) -> Result<TodoFile, String> {
         .filter_map(|file| TodoFile::try_from(file).ok())
         .reduce(|a, b| TodoFile::latest_file(a, b))
         .ok_or("Could not reduce items".to_string())
-}
-
-fn try_get_date(file: &PathBuf) -> Result<NaiveDate, FileNameParseError> {
-    let file_name = file
-        .file_name()
-        .ok_or(FileNameParseError::TypeConversionError(
-            "Could not get filename from path: {:?}",
-        ))?
-        .to_str()
-        .ok_or(FileNameParseError::TypeConversionError(
-            "Could not get filename from path: {:?}",
-        ))?;
-
-    NaiveDate::parse_from_str(file_name, "%Y-%m-%d.md")
-        .or_else(|e| Err(FileNameParseError::ParseError(e)))
-}
-
-impl TryFrom<PathBuf> for DatedPathBuf {
-    type Error = FileNameParseError;
-
-    fn try_from(path: PathBuf) -> Result<Self, Self::Error> {
-        Ok(Self {
-            date: try_get_date(&path)?,
-            path,
-        })
-    }
-}
-
-pub fn get_closest_files(files: &Vec<PathBuf>, target: NaiveDate, n: usize) -> Vec<DatedPathBuf> {
-    let mut dated_files = files
-        .clone()
-        .into_iter()
-        .filter_map(|file| DatedPathBuf::try_from(file).ok())
-        .collect::<Vec<_>>();
-    dated_files.sort_by_cached_key(|dated_file| (dated_file.date - target).num_days().abs());
-
-    dated_files[..n].to_vec()
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use chrono::NaiveDate;
-    use std::path::PathBuf;
-
-    #[test]
-    fn test_get_closest_date() {
-        let files = vec![
-            PathBuf::from("./2024-01-01.md"),
-            PathBuf::from("./2024-01-02.md"),
-            PathBuf::from("./2024-01-03.md"),
-            PathBuf::from("./2024-02-01.md"),
-            PathBuf::from("./2024-03-01.md"),
-            PathBuf::from("./2024-04-01.md"),
-            PathBuf::from("./2024-04-02.md"),
-            PathBuf::from("./2024-04-03.md"),
-            PathBuf::from("./2024-04-04.md"),
-        ];
-
-        let res = get_closest_files(&files, NaiveDate::from_ymd_opt(2023, 12, 30).unwrap(), 3);
-        let expected_res = vec![
-            DatedPathBuf::try_from(PathBuf::from("./2024-01-01.md")).unwrap(),
-            DatedPathBuf::try_from(PathBuf::from("./2024-01-02.md")).unwrap(),
-            DatedPathBuf::try_from(PathBuf::from("./2024-01-03.md")).unwrap(),
-        ];
-        assert_eq!(res, expected_res);
-
-        let res = get_closest_files(&files, NaiveDate::from_ymd_opt(2024, 2, 1).unwrap(), 3);
-        let expected_res = vec![
-            DatedPathBuf::try_from(PathBuf::from("./2024-02-01.md")).unwrap(),
-            DatedPathBuf::try_from(PathBuf::from("./2024-01-03.md")).unwrap(),
-            DatedPathBuf::try_from(PathBuf::from("./2024-03-01.md")).unwrap(),
-        ];
-        assert_eq!(res, expected_res);
-
-        let res = get_closest_files(&files, NaiveDate::from_ymd_opt(2024, 5, 2).unwrap(), 3);
-        let expected_res = vec![
-            DatedPathBuf::try_from(PathBuf::from("./2024-04-04.md")).unwrap(),
-            DatedPathBuf::try_from(PathBuf::from("./2024-04-03.md")).unwrap(),
-            DatedPathBuf::try_from(PathBuf::from("./2024-04-02.md")).unwrap(),
-        ];
-        assert_eq!(res, expected_res);
-    }
 }

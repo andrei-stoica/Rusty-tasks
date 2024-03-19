@@ -5,9 +5,9 @@ mod todo;
 
 use crate::cli::Args;
 use crate::config::Config;
-use crate::todo::TaskGroup;
+use crate::todo::{File as TodoFile, TaskGroup};
 use chrono::naive::NaiveDate;
-use chrono::{Datelike, Local};
+use chrono::{Datelike, Local, TimeDelta};
 use clap::Parser;
 use comrak::Arena;
 use resolve_path::PathResolveExt;
@@ -66,7 +66,16 @@ fn main() {
         };
     }
 
-    let latest_file = file::get_latest_file(&data_dir);
+    let files = fs::read_dir(&data_dir)
+        .expect(format!("Could not find notes folder: {:?}", &data_dir).as_str())
+        .filter_map(|f| f.ok())
+        .map(|file| file.path());
+    let today = Local::now().date_naive();
+    let target = today - TimeDelta::try_days(args.previous.into()).unwrap();
+    let cloesest_files = TodoFile::get_closest_files(files.collect(), target, 5);
+    println!("{:?}", cloesest_files);
+
+    let latest_file = cloesest_files.first().ok_or("");
 
     let now = Local::now();
     let today = NaiveDate::from_ymd_opt(now.year(), now.month(), now.day()).unwrap();
@@ -109,7 +118,7 @@ fn main() {
             file::write_file(&file_path, &content);
             file_path
         }
-        Ok(todo_file) => todo_file.file.path(),
+        Ok(todo_file) => todo_file.file.clone(),
     };
 
     Command::new(&cfg.editor)
