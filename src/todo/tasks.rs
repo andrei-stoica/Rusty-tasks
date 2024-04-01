@@ -81,7 +81,7 @@ impl ToString for Task {
                 .map(|task| task.to_string())
                 .collect::<Vec<_>>()
                 .join("\n");
-            format!("\n{}", text).trim_end().replace("\n",  "\n  ")
+            format!("\n{}", text).trim_end().replace("\n", "\n  ")
         } else {
             "".into()
         };
@@ -92,6 +92,7 @@ impl ToString for Task {
 
 impl<'a> TryFrom<&'a AstNode<'a>> for Task {
     type Error = TaskError;
+
     fn try_from(node: &'a AstNode<'a>) -> Result<Self, Self::Error> {
         let data_ref = &node.data.borrow();
         if let NodeValue::TaskItem(ch) = data_ref.value {
@@ -158,6 +159,7 @@ impl ToString for TaskGroup {
 
 impl<'a> TryFrom<&'a AstNode<'a>> for TaskGroup {
     type Error = TaskError;
+
     fn try_from(node: &'a AstNode<'a>) -> Result<Self, Self::Error> {
         let node_ref = &node.data.borrow();
         if let NodeValue::Heading(heading) = node_ref.value {
