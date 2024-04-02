@@ -116,7 +116,7 @@ pub fn extract_secitons<'a>(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::todo::Task;
+    use crate::todo::{Status, Task};
 
     #[test]
     fn test_extract_sections() {
@@ -206,5 +206,72 @@ mod test {
             &vec!["Content".to_string(), "Sub section".to_string()],
         );
         assert_eq!(result.keys().count(), 2);
+    }
+
+    #[test]
+    fn test_generate_file_content() {
+        let date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+        let mut content: Vec<TaskGroup> = vec![];
+
+        let result = generate_file_content(&content, &date);
+        let expected = "# Today's tasks 2024-01-01\n";
+        assert_eq!(result, expected);
+
+        content.push(TaskGroup {
+            name: "Empty".into(),
+            tasks: vec![],
+            level: 2,
+        });
+
+        let result = generate_file_content(&content, &date);
+        let expected = "# Today's tasks 2024-01-01\n\n## Empty\n";
+        assert_eq!(result, expected);
+
+        content.push(TaskGroup {
+            name: "Subgroup".into(),
+            tasks: vec![],
+            level: 3,
+        });
+
+        let result = generate_file_content(&content, &date);
+        let expected = "# Today's tasks 2024-01-01\n\n## Empty\n\n### Subgroup\n";
+        assert_eq!(result, expected);
+
+        content.push(TaskGroup {
+            name: "Tasks".into(),
+            tasks: vec![
+                Task {
+                    status: Status::Empty,
+                    text: "task 1".into(),
+                    subtasks: None,
+                },
+                Task {
+                    status: Status::Done('x'),
+                    text: "task 2".into(),
+                    subtasks: None,
+                },
+                Task {
+                    status: Status::Todo('>'),
+                    text: "task 3".into(),
+                    subtasks: None,
+                },
+            ],
+            level: 2,
+        });
+
+        let result = generate_file_content(&content, &date);
+        let expected = "\
+# Today's tasks 2024-01-01
+
+## Empty
+
+### Subgroup
+
+## Tasks
+- [ ] task 1
+- [x] task 2
+- [>] task 3
+";
+        assert_eq!(result, expected);
     }
 }
