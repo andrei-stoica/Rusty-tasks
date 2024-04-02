@@ -17,6 +17,9 @@ pub struct Args {
     /// list closest files to date
     #[arg(short, long)]
     pub list: bool,
+    /// number of files to list
+    #[arg(short, long, default_value_t = 5)]
+    pub number: usize,
     /// list closest files to date
     #[arg(short = 'L', long)]
     pub list_all: bool,

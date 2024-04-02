@@ -79,7 +79,11 @@ fn main() {
 
     let today = Local::now().date_naive();
     let target = today - TimeDelta::try_days(args.previous.into()).unwrap();
-    let closest_files = TodoFile::get_closest_files(files.collect(), target, 5);
+    if args.list_all {
+        files.for_each(|f| println!("{}", f.canonicalize().unwrap().to_string_lossy()));
+        return ();
+    }
+    let closest_files = TodoFile::get_closest_files(files.collect(), target, args.number);
     if args.list {
         closest_files
             .into_iter()
