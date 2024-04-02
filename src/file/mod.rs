@@ -5,6 +5,7 @@ use chrono::Datelike;
 use comrak::nodes::{AstNode, NodeValue};
 use comrak::parse_document;
 use comrak::{Arena, ComrakExtensionOptions, ComrakOptions, ComrakParseOptions};
+use log;
 use std::collections::HashMap;
 use std::fs::{read, File};
 use std::io::Write;
@@ -147,14 +148,12 @@ mod test {
 
         let sections = vec!["Sub section".to_string()];
         let result = extract_secitons(root, &sections);
-        println!("{:#?}", root);
         assert_eq!(result.keys().count(), 1);
         assert!(result.get(sections.first().unwrap()).is_some());
         assert_eq!(result.get(sections.first().unwrap()).unwrap().level, 3);
 
         let sections = vec!["Content".to_string()];
         let result = extract_secitons(root, &sections);
-        println!("{:#?}", root);
         assert_eq!(result.keys().count(), 1);
         assert!(result.get(sections.first().unwrap()).is_some());
         assert_eq!(

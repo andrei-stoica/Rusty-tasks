@@ -1,23 +1,28 @@
 mod cli;
 mod config;
 mod file;
+mod logging;
 mod todo;
 
-use crate::cli::Args;
-use crate::config::Config;
-use crate::todo::{File as TodoFile, TaskGroup};
 use chrono::naive::NaiveDate;
 use chrono::{Local, TimeDelta};
 use clap::Parser;
+use cli::Args;
 use comrak::Arena;
+use config::Config;
+use log;
+use logging::get_logging_level;
 use resolve_path::PathResolveExt;
+use simple_logger::init_with_level;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use todo::{File as TodoFile, TaskGroup};
 
 fn main() {
     let args = Args::parse();
-    println!("{:?}", args);
+    let _logger = init_with_level(get_logging_level(args.verbose)).unwrap();
+    log::debug!("{:?}", args);
 
     let expected_cfg_files = match Config::expected_locations() {
         Ok(cfg_files) => cfg_files,
@@ -48,7 +53,7 @@ fn main() {
     };
 
     if args.current_config {
-        println!("{}", &cfg_file);
+        log::debug!("{}", &cfg_file);
         return;
     }
 
@@ -56,13 +61,14 @@ fn main() {
         Ok(cfg) => cfg,
         Err(_e) => panic!("could not load config: {}", cfg_file),
     };
+    log::debug!("{:#?}", cfg);
 
     let data_dir = cfg.notes_dir.resolve().to_path_buf();
 
     if !fs::metadata(&data_dir).is_ok() {
         match fs::create_dir_all(&data_dir) {
             Err(_e) => panic!("Could not create default directory: {:?}", &data_dir),
-            _ => (),
+            _ => log::info!("created dir {}", &data_dir.to_string_lossy()),
         };
     }
 
@@ -95,14 +101,21 @@ fn main() {
     let current_file = match latest_file {
         Some(todo_file) if todo_file.date < today && args.previous == 0 => {
             let sections = &cfg.sections;
+            log::info!("looking for sections: {:?}", sections);
             let arena = Arena::new();
 
             let root = {
+                log::info!(
+                    "loading and parsing file: {}",
+                    todo_file.file.to_string_lossy()
+                );
                 let contents = file::load_file(&todo_file);
                 let root = file::parse_todo_file(&contents, &arena);
                 root
             };
+            log::trace!("file loaded");
             let groups = file::extract_secitons(root, sections);
+            log::trace!("sections extracted");
             let level = groups.values().map(|group| group.level).min().unwrap_or(2);
             let data = sections
                 .iter()
@@ -114,12 +127,14 @@ fn main() {
 
             let content = file::generate_file_content(&data, &today);
             let file_path = file::get_filepath(&data_dir, &today);
+            log::info!("writing to file: {}", file_path.to_string_lossy());
             file::write_file(&file_path, &content);
             file_path
         }
         Some(todo_file) => todo_file.file.clone(),
         None => {
             let sections = &cfg.sections;
+            log::info!("creating new empty file with sections: {:?}", sections);
             let data = sections
                 .iter()
                 .map(|sec| TaskGroup::empty(sec.clone(), 2))
@@ -127,10 +142,16 @@ fn main() {
             let content = file::generate_file_content(&data, &today);
             let file_path = file::get_filepath(&data_dir, &today);
             file::write_file(&file_path, &content);
+            log::info!("writing to file: {}", file_path.to_string_lossy());
             file_path
         }
     };
 
+    log::info!(
+        "Opening {} in {}",
+        current_file.to_string_lossy(),
+        cfg.editor
+    );
     Command::new(&cfg.editor)
         .args([current_file])
         .status()
