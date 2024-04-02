@@ -2,5 +2,4 @@ mod file;
 mod tasks;
 
 pub use file::File;
-pub use tasks::{Status, TaskGroup};
-
+pub use tasks::{Status, Task, TaskGroup};

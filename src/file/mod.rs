@@ -111,3 +111,101 @@ pub fn extract_secitons<'a>(
     }
     groups
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::todo::Task;
+
+    #[test]
+    fn test_extract_sections() {
+        let test_md = "\
+# Test
+## Content
+ - [ ] something
+ - [x] done
+ - [!] other
+## Unused
+### Sub section
+ - [ ] task
+## Unrealated Stuff
+ - [ ] something else
+    + [ ] subtask";
+
+        let arena = Arena::new();
+        let root = parse_todo_file(&test_md.to_string(), &arena);
+
+        let result = extract_secitons(root, &vec![]);
+        assert_eq!(result.keys().count(), 0);
+
+        let result = extract_secitons(root, &vec!["Not There".to_string()]);
+        assert_eq!(result.keys().count(), 0);
+
+        let sections = vec!["Unused".to_string()];
+        let result = extract_secitons(root, &sections);
+        assert_eq!(result.keys().count(), 0);
+
+        let sections = vec!["Sub section".to_string()];
+        let result = extract_secitons(root, &sections);
+        println!("{:#?}", root);
+        assert_eq!(result.keys().count(), 1);
+        assert!(result.get(sections.first().unwrap()).is_some());
+        assert_eq!(result.get(sections.first().unwrap()).unwrap().level, 3);
+
+        let sections = vec!["Content".to_string()];
+        let result = extract_secitons(root, &sections);
+        println!("{:#?}", root);
+        assert_eq!(result.keys().count(), 1);
+        assert!(result.get(sections.first().unwrap()).is_some());
+        assert_eq!(
+            result
+                .get(sections.first().unwrap())
+                .expect("No Value for \"Content\""),
+            &TaskGroup {
+                name: sections.first().unwrap().clone(),
+                tasks: vec![
+                    Task {
+                        status: TaskStatus::Empty,
+                        text: "something".to_string(),
+                        subtasks: None
+                    },
+                    Task {
+                        status: TaskStatus::Todo('!'),
+                        text: "other".to_string(),
+                        subtasks: None
+                    },
+                ],
+                level: 2
+            }
+        );
+
+        let sections = vec!["Unrealated Stuff".to_string()];
+        let result = extract_secitons(root, &sections);
+        assert_eq!(result.keys().count(), 1);
+        assert!(result.get(sections.first().unwrap()).is_some());
+        assert_eq!(
+            result
+                .get(sections.first().unwrap())
+                .expect("No Value for \"Content\""),
+            &TaskGroup {
+                name: sections.first().unwrap().clone(),
+                tasks: vec![Task {
+                    status: TaskStatus::Empty,
+                    text: "something else".to_string(),
+                    subtasks: Some(vec![Task {
+                        status: TaskStatus::Empty,
+                        text: "subtask".to_string(),
+                        subtasks: None
+                    }]),
+                }],
+                level: 2
+            }
+        );
+
+        let result = extract_secitons(
+            root,
+            &vec!["Content".to_string(), "Sub section".to_string()],
+        );
+        assert_eq!(result.keys().count(), 2);
+    }
+}

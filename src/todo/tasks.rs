@@ -3,7 +3,7 @@ use std::borrow::Borrow;
 use comrak::nodes::AstNode;
 use comrak::nodes::NodeValue;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TaskGroup {
     pub name: String,
     pub tasks: Vec<Task>,
@@ -11,7 +11,7 @@ pub struct TaskGroup {
 }
 
 // This does not support subtasks, need to figure out best path forward
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Task {
     pub status: Status,
     pub text: String,
