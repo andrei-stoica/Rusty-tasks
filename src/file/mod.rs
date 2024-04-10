@@ -25,6 +25,7 @@ pub fn get_filepath(data_dir: &PathBuf, date: &NaiveDate) -> PathBuf {
     file_path
 }
 
+// generate strings from  TaskGroups and date
 pub fn generate_file_content(data: &Vec<TaskGroup>, date: &NaiveDate) -> String {
     let mut content = format!(
         "# Today's tasks {}-{:02}-{:02}\n",
@@ -43,6 +44,7 @@ pub fn write_file(path: &PathBuf, content: &String) {
     write!(new_file, "{}", content).expect("Could not write to file: {today_file_path}");
 }
 
+/// Load in text file as String
 pub fn load_file(file: &TodoFile) -> String {
     let contents_utf8 = read(file.file.clone())
         .expect(format!("Could not read file {}", file.file.to_string_lossy()).as_str());
@@ -57,6 +59,7 @@ pub fn load_file(file: &TodoFile) -> String {
         .to_string()
 }
 
+/// Parse contents of markdown file with Comrak ( relaxed tasklist matching is enabled)
 pub fn parse_todo_file<'a>(contents: &String, arena: &'a Arena<AstNode<'a>>) -> &'a AstNode<'a> {
     let options = &ComrakOptions {
         extension: ComrakExtensionOptions {
