@@ -5,7 +5,6 @@ use chrono::Datelike;
 use comrak::nodes::{AstNode, NodeValue};
 use comrak::parse_document;
 use comrak::{Arena, ComrakExtensionOptions, ComrakOptions, ComrakParseOptions};
-use log;
 use std::collections::HashMap;
 use std::fs::{read, File};
 use std::io::Write;
@@ -25,8 +24,9 @@ pub fn get_filepath(data_dir: &PathBuf, date: &NaiveDate) -> PathBuf {
     file_path
 }
 
-// generate strings from  TaskGroups and date
+/// generate strings from TaskGroups and date
 pub fn generate_file_content(data: &Vec<TaskGroup>, date: &NaiveDate) -> String {
+    // TODO: This should be a type and then I can implement it with From<>
     let mut content = format!(
         "# Today's tasks {}-{:02}-{:02}\n",
         date.year(),
@@ -46,6 +46,7 @@ pub fn write_file(path: &PathBuf, content: &String) {
 
 /// Load in text file as String
 pub fn load_file(file: &TodoFile) -> String {
+    // TODO: This could be a TryFrom<>
     let contents_utf8 = read(file.file.clone())
         .expect(format!("Could not read file {}", file.file.to_string_lossy()).as_str());
     str::from_utf8(&contents_utf8)

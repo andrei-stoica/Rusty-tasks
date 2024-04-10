@@ -19,6 +19,7 @@ use std::path::Path;
 use std::process::Command;
 use todo::{File as TodoFile, TaskGroup};
 
+// TODO: add options to use specific date instead of args.previous
 fn main() {
     // setup
     let args = Args::parse();
@@ -100,11 +101,18 @@ fn main() {
     let closest_files = TodoFile::get_closest_files(files.collect(), target, args.number);
     // list files
     if args.list {
-        closest_files
-            .into_iter()
-            .for_each(|f| println!("{}", f.file.canonicalize().unwrap().to_string_lossy()));
+        println!("Today - n\tFile");
+        closest_files.into_iter().for_each(|f| {
+            println!(
+                "{}\t\t{}",
+                (today - f.date).num_days(),
+                f.file.canonicalize().unwrap().to_string_lossy(),
+            )
+        });
         return ();
     }
+    // TODO: If the user did not pick a date that exist they should have the
+    // option to updated their choice
 
     let latest_file = closest_files.first();
     let current_file = match latest_file {
