@@ -164,21 +164,18 @@ impl<'a> TryFrom<&'a AstNode<'a>> for TaskGroup {
         let node_ref = &node.data.borrow();
         if let NodeValue::Heading(heading) = node_ref.value {
             let level = heading.level;
-            let first_child_ref = &node.first_child();
-            let first_child = if let Some(child) = first_child_ref {
-                child
-            } else {
-                return Err(TaskError::ParsingError("Node has no children"));
-            };
+            let first_child = node
+                .first_child()
+                .ok_or(TaskError::ParsingError("Node has no children"))?;
 
-            let data_ref = &first_child.data.borrow();
+            let data_ref = first_child.data.borrow();
             let name = if let NodeValue::Text(value) = &data_ref.value {
-                value.to_string()
+                Ok(value.to_string())
             } else {
-                return Err(TaskError::ParsingError(
+                Err(TaskError::ParsingError(
                     "Could not get title from heading node",
-                ));
-            };
+                ))
+            }?;
 
             let next_sib = node
                 .next_sibling()
