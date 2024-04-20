@@ -97,7 +97,11 @@ fn main() {
 
     // get clossest files to specified date
     let today = Local::now().date_naive();
-    let target = today - TimeDelta::try_days(args.previous.into()).unwrap();
+    let target = if let Some(date_str) = args.date {
+        cli::smart_parse_date(&date_str, &today).expect("Could not parse date")
+    } else {
+        today - TimeDelta::try_days(args.previous.into()).unwrap()
+    };
     let closest_files = TodoFile::get_closest_files(files.collect(), target, args.number);
     // list files
     if args.list {

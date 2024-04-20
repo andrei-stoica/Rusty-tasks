@@ -25,16 +25,15 @@ digital, automated version of that.
 
 ```bash
 git clone https://github.com/andrei-stoica/rusty-tasks.git
-cd rusty-task
-cargo install --path .
+cd rusty-task cargo install --path .
 ```
 
 Alternatively, there is a binary download for AMD64 Linux machines available 
 on the [releases page](https://github.com/andrei-stoica/rusty-tasks/releases).
-Just drop that anywhere on you PATH. I recommend adding `~/bin` to your PATH
+Just drop that anywhere on your PATH. I recommend adding `~/bin` to your PATH
 and dropping the executable there.
 
-If you are not on a AMD64 Linux machine, you will need to build from source.
+If you are not on an AMD64 Linux machine, you will need to build from source.
 I have not tested this on other platforms, so I hesitate to provide binaries
 for them.
 
@@ -46,6 +45,7 @@ Usage: rusty-tasks [OPTIONS]
 Options:
   -c, --config <FILE>        set config file to use
   -C, --current-config       show current config file
+  -d, --date <DATE>          view a specific date's file (format: YYYY-MM-DD)
   -p, --previous <PREVIOUS>  view previous day's notes [default: 0]
   -l, --list                 list closest files to date
   -n, --number <NUMBER>      number of files to list [default: 5]
@@ -60,6 +60,12 @@ Just use `rust-task` to access today's notes file.
 Use `rust-task -p <n>` to access a previous day's file where `<n>` is the number
 of days back you want to go. If a file does not exist for that day, it will
 default to the closest to that date. A value of 0 represents today's file.
+
+Alternatively, use `--date` or `-d` to specify a date specifically. Preferably
+in the format year-month-day, padding with zero is optional. However, if the
+year, or, year and month are omitted they will be filled in with the current
+date's year and month. For example, If the current date is `2024-2-30`, the
+string `4` will resolve to `2024-2-4`, and `1-4` will resolve to `2024-1-4`.
 
 Specify a custom config location with `-c`, otherwise, it will scan for a config
 in the locations specified in the [config section](#config). If no config
