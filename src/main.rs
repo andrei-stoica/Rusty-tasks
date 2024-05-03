@@ -19,7 +19,6 @@ use std::path::Path;
 use std::process::Command;
 use todo::{File as TodoFile, TaskGroup};
 
-// TODO: add options to use specific date instead of args.previous
 fn main() {
     // setup
     let args = Args::parse();
