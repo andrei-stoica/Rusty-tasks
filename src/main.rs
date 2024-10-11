@@ -5,19 +5,22 @@ mod logging;
 mod todo;
 
 use chrono::naive::NaiveDate;
-use chrono::{Local, TimeDelta};
+use chrono::{Datelike, Local, TimeDelta};
 use clap::Parser;
 use cli::Args;
-use comrak::Arena;
+use comrak::{format_commonmark, Arena, ComrakOptions, ExtensionOptions, ParseOptions};
 use config::Config;
 use log;
 use logging::get_logging_level;
 use resolve_path::PathResolveExt;
 use simple_logger::init_with_level;
 use std::fs;
+use std::io::BufWriter;
 use std::path::Path;
 use std::process::Command;
 use todo::{File as TodoFile, TaskGroup};
+
+use crate::file::{create_new_doc, extract_sections, process_doc_tree};
 
 fn main() {
     // setup
@@ -121,6 +124,17 @@ fn main() {
     let current_file = match latest_file {
         // copy old file if the user specifies today's notes but it does not exist
         Some(todo_file) if todo_file.date < today && args.previous == 0 => {
+            let mut extension_options = ExtensionOptions::default();
+            extension_options.tasklist = true;
+
+            let mut parse_options = ParseOptions::default();
+            parse_options.relaxed_tasklist_matching = true;
+
+            let options = &ComrakOptions {
+                extension: extension_options,
+                parse: parse_options,
+                ..ComrakOptions::default()
+            };
             let sections = &cfg.sections;
             log::info!("looking for sections: {:?}", sections);
             let arena = Arena::new();
@@ -131,29 +145,28 @@ fn main() {
                     "loading and parsing file: {}",
                     todo_file.file.to_string_lossy()
                 );
+
                 let contents = file::load_file(&todo_file);
-                let root = file::parse_todo_file(&contents, &arena);
+                let root = comrak::parse_document(&arena, &contents, options);
                 root
             };
             log::trace!("file loaded");
-            // extract sections specified in config
-            let groups = file::extract_secitons(root, sections);
-            log::trace!("sections extracted");
-            // create new sections and generate empty sections for any that are missing
-            let level = groups.values().map(|group| group.level).min().unwrap_or(2);
-            let data = sections
-                .iter()
-                .map(|section| match groups.get(section) {
-                    Some(group) => group.clone(),
-                    None => TaskGroup::empty(section.to_string(), level),
-                })
-                .collect();
+
+            let sect = extract_sections(root, &sections);
+            let date = format!("{}-{:02}-{:02}", today.year(), today.month(), today.day());
 
             // generate string for new file and write to filesystem
-            let content = file::generate_file_content(&data, &today);
+            let new_doc = file::create_new_doc(&arena, &date, sect);
+
+            process_doc_tree(root, &date, &sections);
+
+            let mut new_content = BufWriter::new(Vec::new());
+            format_commonmark(new_doc, options, &mut new_content);
+            let text = String::from_utf8(new_content.into_inner().expect(""));
+
             let file_path = file::get_filepath(&data_dir, &today);
             log::info!("writing to file: {}", file_path.to_string_lossy());
-            file::write_file(&file_path, &content);
+            file::write_file(&file_path, &text.expect(""));
             // return file name
             file_path
         }
